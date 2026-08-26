@@ -2,79 +2,165 @@
 <html lang="en">
 
 <head>
+
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Task Manager</title>
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
-    <link rel="stylesheet" href="/css/style.css">
+    <title>My Tasks</title>
+
+    <link
+        rel="stylesheet"
+        href="/css/style.css"
+    >
+
 </head>
 
 <body>
 
-    <header>
-        <h1>Task Manager</h1>
+    <div class="container">
 
-        <nav>
-            <a href="/tasks">All</a>
-            <a href="/tasks?status=pending">
-                Pending
-            </a>
-            <a href="/tasks?status=completed">
-                Completed
-            </a>
+        <header>
 
-            <a href="/tasks/new">
-                + New Task
-            </a>
-        </nav>
-    </header>
+            <div>
 
-    <main>
+                <h1>Task Manager</h1>
 
-        <h2>Tasks</h2>
+                <p>
+                    Welcome,
+                    <strong>
+                        <%= username %>
+                    </strong>
+                </p>
+
+                <p>
+                    Role:
+                    <strong>
+                        <%= role %>
+                    </strong>
+                </p>
+
+            </div>
+
+            <div>
+
+                <% if (role === "admin") { %>
+
+                    <a href="/admin">
+                        Admin Dashboard
+                    </a>
+
+                <% } %>
+
+                <form
+                    action="/auth/logout"
+                    method="POST"
+                    class="inline-form"
+                >
+
+                    <button type="submit">
+                        Logout
+                    </button>
+
+                </form>
+
+            </div>
+
+        </header>
+
+        <hr>
+
+        <a href="/tasks/new">
+            <button>
+                Add New Task
+            </button>
+        </a>
+
+        <h2>My Tasks</h2>
 
         <% if (tasks.length === 0) { %>
 
-            <p>No tasks found.</p>
+            <p>
+                You don't have any tasks yet.
+            </p>
 
         <% } %>
 
         <% tasks.forEach(task => { %>
 
-            <article class="task">
+            <div class="task-card">
 
                 <h3>
-                    <a href="/tasks/<%= task.id %>">
-                        <%= task.title %>
-                    </a>
+                    <%= task.title %>
                 </h3>
 
                 <p>
                     <%= task.description %>
                 </p>
 
-                <% if (task.completed) { %>
+                <p>
 
-                    <span class="completed">
-                        Completed
-                    </span>
+                    Status:
 
-                <% } else { %>
+                    <% if (task.completed) { %>
 
-                    <span class="pending">
-                        Pending
-                    </span>
+                        <strong>
+                            Completed
+                        </strong>
 
-                <% } %>
+                    <% } else { %>
 
-            </article>
+                        <strong>
+                            Pending
+                        </strong>
 
-        <% }); %>
+                    <% } %>
 
-    </main>
+                </p>
 
-    <script src="/js/app.js"></script>
+                <a
+                    href="/tasks/<%= task.id %>/edit"
+                >
+                    Edit
+                </a>
+
+                <form
+                    action="/tasks/<%= task.id %>/complete"
+                    method="POST"
+                    class="inline-form"
+                >
+
+                    <button type="submit">
+
+                        <%= task.completed
+                            ? "Mark Pending"
+                            : "Complete"
+                        %>
+
+                    </button>
+
+                </form>
+
+                <form
+                    action="/tasks/<%= task.id %>/delete"
+                    method="POST"
+                    class="inline-form"
+                >
+
+                    <button type="submit">
+                        Delete
+                    </button>
+
+                </form>
+
+            </div>
+
+        <% }) %>
+
+    </div>
 
 </body>
 

@@ -3,116 +3,153 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const task_model_1 = require("../models/task.model");
 const router = (0, express_1.Router)();
-// GET /tasks
-// GET /tasks?status=completed
-// GET /tasks?status=pending
+/*
+    GET ALL USER TASKS
+*/
 router.get("/", async (req, res) => {
     try {
-        const status = req.query.status;
-        let tasks;
-        if (status === "completed") {
-            tasks = await task_model_1.Task.findAll({
-                where: {
-                    completed: true
-                }
-            });
-        }
-        else if (status === "pending") {
-            tasks = await task_model_1.Task.findAll({
-                where: {
-                    completed: false
-                }
-            });
-        }
-        else {
-            tasks = await task_model_1.Task.findAll();
-        }
+        const tasks = await task_model_1.Task.findAll({
+            where: {
+                userId: req.session.userId
+            },
+            order: [
+                ["createdAt", "DESC"]
+            ]
+        });
         res.render("tasks/index", {
-            tasks,
-            status
+            tasks
         });
     }
     catch (error) {
         console.error(error);
         res.status(500).render("error", {
-            message: "Failed to fetch tasks"
+            message: "Unable to fetch tasks"
         });
     }
 });
-// GET /tasks/new
+/*
+    CREATE TASK PAGE
+*/
 router.get("/new", (req, res) => {
-    res.render("tasks/new");
+    res.render("tasks/create");
 });
-// GET /tasks/:id
-router.get("/:id", async (req, res) => {
-    try {
-        const id = Number(req.params.id);
-        const task = await task_model_1.Task.findByPk(id);
-        if (!task) {
-            return res.status(404).render("error", {
-                message: "Task not found"
-            });
-        }
-        res.render("tasks/show", {
-            task
-        });
-    }
-    catch (error) {
-        console.error(error);
-        res.status(500).render("error", {
-            message: "Failed to fetch task"
-        });
-    }
-});
-// POST /tasks
+/*
+    CREATE TASK
+*/
 router.post("/", async (req, res) => {
     try {
         const { title, description } = req.body;
-        if (!title || !description) {
-            return res.status(400).render("error", {
-                message: "Title and description are required"
-            });
-        }
         await task_model_1.Task.create({
             title,
             description,
-            completed: false
+            completed: false,
+            userId: req.session.userId
         });
         res.redirect("/tasks");
     }
     catch (error) {
         console.error(error);
         res.status(500).render("error", {
-            message: "Failed to create task"
+            message: "Unable to create task"
         });
     }
 });
-// POST /tasks/:id/complete
-router.post("/:id/complete", async (req, res) => {
+/*
+    GET EDIT PAGE
+*/
+router.get("/:id/edit", async (req, res) => {
     try {
-        const id = Number(req.params.id);
-        const task = await task_model_1.Task.findByPk(id);
+        const task = await task_model_1.Task.findOne({
+            where: {
+                id: Number(req.params.id),
+                userId: req.session.userId
+            }
+        });
         if (!task) {
             return res.status(404).render("error", {
                 message: "Task not found"
             });
         }
-        task.completed = true;
-        await task.save();
-        res.redirect(`/tasks/${id}`);
+        res.render("tasks/edit", {
+            task
+        });
     }
     catch (error) {
         console.error(error);
         res.status(500).render("error", {
-            message: "Failed to complete task"
+            message: "Unable to fetch task"
         });
     }
 });
-// POST /tasks/:id/delete
+/*
+    UPDATE TASK
+*/
+router.post("/:id", async (req, res) => {
+    try {
+        const task = await task_model_1.Task.findOne({
+            where: {
+                id: Number(req.params.id),
+                userId: req.session.userId
+            }
+        });
+        if (!task) {
+            return res.status(404).render("error", {
+                message: "Task not found"
+            });
+        }
+        task.title =
+            req.body.title;
+        task.description =
+            req.body.description;
+        await task.save();
+        res.redirect("/tasks");
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).render("error", {
+            message: "Unable to update task"
+        });
+    }
+});
+/*
+    COMPLETE TASK
+*/
+router.post("/:id/complete", async (req, res) => {
+    try {
+        const task = await task_model_1.Task.findOne({
+            where: {
+                id: Number(req.params.id),
+                userId: req.session.userId
+            }
+        });
+        if (!task) {
+            return res.status(404).render("error", {
+                message: "Task not found"
+            });
+        }
+        task.completed =
+            !task.completed;
+        await task.save();
+        res.redirect("/tasks");
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).render("error", {
+            message: "Unable to update task"
+        });
+    }
+});
+/*
+    DELETE TASK
+*/
 router.post("/:id/delete", async (req, res) => {
     try {
-        const id = Number(req.params.id);
-        const task = await task_model_1.Task.findByPk(id);
+        const task = await task_model_1.Task.findOne({
+            where: {
+                id: Number(req.params.id),
+                userId: req.session.userId
+            }
+        });
         if (!task) {
             return res.status(404).render("error", {
                 message: "Task not found"
@@ -124,7 +161,7 @@ router.post("/:id/delete", async (req, res) => {
     catch (error) {
         console.error(error);
         res.status(500).render("error", {
-            message: "Failed to delete task"
+            message: "Unable to delete task"
         });
     }
 });

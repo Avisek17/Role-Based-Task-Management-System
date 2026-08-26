@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <title>Admin Dashboard</title>
+
+    <link
+        rel="stylesheet"
+        href="/css/style.css"
+    >
+
+</head>
+
+<body>
+
+    <div class="container">
+
+        <h1>Admin Dashboard</h1>
+
+        <p>
+            Welcome Admin,
+            <strong>
+                <%= username %>
+            </strong>
+        </p>
+
+        <a href="/tasks">
+            Back to Tasks
+        </a>
+
+        <h2>Users</h2>
+
+        <table>
+
+            <thead>
+
+                <tr>
+                    <th>ID</th>
+                    <th>Username</th>
+                    <th>Role</th>
+                    <th>Created</th>
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                <% users.forEach(user => { %>
+
+                    <tr>
+
+                        <td>
+                            <%= user.id %>
+                        </td>
+
+                        <td>
+                            <%= user.username %>
+                        </td>
+
+                        <td>
+                            <%= user.role %>
+                        </td>
+
+                        <td>
+                            <%= user.createdAt %>
+                        </td>
+
+                    </tr>
+
+                <% }) %>
+
+            </tbody>
+
+        </table>
+
+        <h2>
+            Total Tasks:
+            <%= tasks.length %>
+        </h2>
+
+    </div>
+
+</body>
+
+</html>

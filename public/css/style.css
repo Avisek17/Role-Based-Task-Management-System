@@ -3,62 +3,42 @@
 }
 
 body {
+    margin: 0;
     font-family: Arial, sans-serif;
+    background: #f4f4f4;
+}
+
+.container {
+    width: 90%;
     max-width: 900px;
-    margin: 0 auto;
-    padding: 30px;
-    background: #f5f5f5;
-}
-
-header {
-    margin-bottom: 30px;
-}
-
-nav {
-    display: flex;
-    gap: 15px;
-    margin-top: 15px;
-}
-
-a {
-    text-decoration: none;
-}
-
-main {
+    margin: 40px auto;
     background: white;
-    padding: 25px;
+    padding: 30px;
     border-radius: 8px;
 }
 
-.task {
-    padding: 15px;
-    margin-bottom: 15px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
+h1,
+h2,
+h3 {
+    margin-top: 0;
 }
 
-.completed {
-    color: green;
-}
-
-.pending {
-    color: orange;
-}
-
-form {
-    margin-top: 20px;
+.form-group {
+    margin-bottom: 20px;
 }
 
 label {
     display: block;
-    margin-top: 15px;
+    margin-bottom: 6px;
+    font-weight: bold;
 }
 
 input,
 textarea {
     width: 100%;
     padding: 10px;
-    margin-top: 5px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
 }
 
 textarea {
@@ -66,12 +46,32 @@ textarea {
 }
 
 button {
-    margin-top: 15px;
-    padding: 10px 16px;
+    padding: 9px 15px;
+    border: none;
+    border-radius: 4px;
     cursor: pointer;
 }
 
-.delete {
-    background: #d33;
-    color: white;
+.task-card {
+    border: 1px solid #ddd;
+    padding: 20px;
+    margin-top: 15px;
+    border-radius: 6px;
+}
+
+.inline-form {
+    display: inline;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+th,
+td {
+    padding: 10px;
+    border: 1px solid #ddd;
+    text-align: left;
 }
