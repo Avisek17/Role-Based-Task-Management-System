@@ -1,118 +1,240 @@
-import { Router, Request, Response } from "express";
-import { tasks } from "../data/tasks";
+import {
+    Router,
+    Request,
+    Response
+} from "express";
+
+import { Task } from "../models/task.model";
 
 const router = Router();
 
-router.get("/", (req: Request, res: Response) => {
-    const status = req.query.status;
 
-    let filteredTasks = tasks;
+// GET /tasks
+// GET /tasks?status=completed
+// GET /tasks?status=pending
 
-    if (status === "completed") {
-        filteredTasks = tasks.filter(
-            task => task.completed
-        );
+router.get(
+    "/",
+    async (req: Request, res: Response) => {
+
+        try {
+            const status = req.query.status;
+
+            let tasks;
+
+            if (status === "completed") {
+
+                tasks = await Task.findAll({
+                    where: {
+                        completed: true
+                    }
+                });
+
+            } else if (status === "pending") {
+
+                tasks = await Task.findAll({
+                    where: {
+                        completed: false
+                    }
+                });
+
+            } else {
+
+                tasks = await Task.findAll();
+
+            }
+
+            res.render("tasks/index", {
+                tasks,
+                status
+            });
+
+        } catch (error) {
+
+            console.error(error);
+
+            res.status(500).render("error", {
+                message: "Failed to fetch tasks"
+            });
+        }
     }
+);
 
-    if (status === "pending") {
-        filteredTasks = tasks.filter(
-            task => !task.completed
-        );
+
+// GET /tasks/new
+
+router.get(
+    "/new",
+    (req: Request, res: Response) => {
+
+        res.render("tasks/new");
+
     }
+);
 
-    res.render("tasks/index", {
-        tasks: filteredTasks,
-        status
-    });
-});
 
-router.get("/new", (req: Request, res: Response) => {
-    res.render("tasks/new");
-});
+// GET /tasks/:id
 
-router.get("/:id", (req: Request, res: Response) => {
-    const id = Number(req.params.id);
+router.get(
+    "/:id",
+    async (req: Request, res: Response) => {
 
-    const task = tasks.find(
-        task => task.id === id
-    );
+        try {
 
-    if (!task) {
-        return res.status(404).render("error", {
-            message: "Task not found"
-        });
+            const id = Number(req.params.id);
+
+            const task = await Task.findByPk(id);
+
+            if (!task) {
+
+                return res.status(404).render(
+                    "error",
+                    {
+                        message: "Task not found"
+                    }
+                );
+
+            }
+
+            res.render("tasks/show", {
+                task
+            });
+
+        } catch (error) {
+
+            console.error(error);
+
+            res.status(500).render("error", {
+                message: "Failed to fetch task"
+            });
+        }
     }
+);
 
-    res.render("tasks/show", {
-        task
-    });
-});
 
-router.post("/", (req: Request, res: Response) => {
-    const { title, description } = req.body;
+// POST /tasks
 
-    if (!title || !description) {
-        return res.status(400).render("error", {
-            message: "Title and description are required"
-        });
+router.post(
+    "/",
+    async (req: Request, res: Response) => {
+
+        try {
+
+            const {
+                title,
+                description
+            } = req.body;
+
+            if (!title || !description) {
+
+                return res.status(400).render(
+                    "error",
+                    {
+                        message:
+                            "Title and description are required"
+                    }
+                );
+
+            }
+
+            await Task.create({
+                title,
+                description,
+                completed: false
+            });
+
+            res.redirect("/tasks");
+
+        } catch (error) {
+
+            console.error(error);
+
+            res.status(500).render("error", {
+                message: "Failed to create task"
+            });
+        }
     }
+);
 
-    const newTask = {
-        id: tasks.length > 0
-            ? Math.max(...tasks.map(task => task.id)) + 1
-            : 1,
-        title,
-        description,
-        completed: false
-    };
 
-    tasks.push(newTask);
-
-    res.redirect("/tasks");
-});
+// POST /tasks/:id/complete
 
 router.post(
     "/:id/complete",
-    (req: Request, res: Response) => {
+    async (req: Request, res: Response) => {
 
-        const id = Number(req.params.id);
+        try {
 
-        const task = tasks.find(
-            task => task.id === id
-        );
+            const id = Number(req.params.id);
 
-        if (!task) {
-            return res.status(404).render("error", {
-                message: "Task not found"
+            const task = await Task.findByPk(id);
+
+            if (!task) {
+
+                return res.status(404).render(
+                    "error",
+                    {
+                        message: "Task not found"
+                    }
+                );
+
+            }
+
+            task.completed = true;
+
+            await task.save();
+
+            res.redirect(`/tasks/${id}`);
+
+        } catch (error) {
+
+            console.error(error);
+
+            res.status(500).render("error", {
+                message: "Failed to complete task"
             });
         }
-
-        task.completed = true;
-
-        res.redirect(`/tasks/${id}`);
     }
 );
+
+
+// POST /tasks/:id/delete
 
 router.post(
     "/:id/delete",
-    (req: Request, res: Response) => {
+    async (req: Request, res: Response) => {
 
-        const id = Number(req.params.id);
+        try {
 
-        const index = tasks.findIndex(
-            task => task.id === id
-        );
+            const id = Number(req.params.id);
 
-        if (index === -1) {
-            return res.status(404).render("error", {
-                message: "Task not found"
+            const task = await Task.findByPk(id);
+
+            if (!task) {
+
+                return res.status(404).render(
+                    "error",
+                    {
+                        message: "Task not found"
+                    }
+                );
+
+            }
+
+            await task.destroy();
+
+            res.redirect("/tasks");
+
+        } catch (error) {
+
+            console.error(error);
+
+            res.status(500).render("error", {
+                message: "Failed to delete task"
             });
         }
-
-        tasks.splice(index, 1);
-
-        res.redirect("/tasks");
     }
 );
+
 
 export default router;
