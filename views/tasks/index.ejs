@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Task Manager</title>
+
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+
+<body>
+
+    <header>
+        <h1>Task Manager</h1>
+
+        <nav>
+            <a href="/tasks">All</a>
+            <a href="/tasks?status=pending">
+                Pending
+            </a>
+            <a href="/tasks?status=completed">
+                Completed
+            </a>
+
+            <a href="/tasks/new">
+                + New Task
+            </a>
+        </nav>
+    </header>
+
+    <main>
+
+        <h2>Tasks</h2>
+
+        <% if (tasks.length === 0) { %>
+
+            <p>No tasks found.</p>
+
+        <% } %>
+
+        <% tasks.forEach(task => { %>
+
+            <article class="task">
+
+                <h3>
+                    <a href="/tasks/<%= task.id %>">
+                        <%= task.title %>
+                    </a>
+                </h3>
+
+                <p>
+                    <%= task.description %>
+                </p>
+
+                <% if (task.completed) { %>
+
+                    <span class="completed">
+                        Completed
+                    </span>
+
+                <% } else { %>
+
+                    <span class="pending">
+                        Pending
+                    </span>
+
+                <% } %>
+
+            </article>
+
+        <% }); %>
+
+    </main>
+
+    <script src="/js/app.js"></script>
+
+</body>
+
+</html>

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <title>
+        <%= task.title %>
+    </title>
+
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+
+<body>
+
+    <header>
+
+        <h1>
+            <%= task.title %>
+        </h1>
+
+        <a href="/tasks">
+            ← Back
+        </a>
+
+    </header>
+
+    <main>
+
+        <p>
+            <%= task.description %>
+        </p>
+
+        <p>
+            Status:
+
+            <% if (task.completed) { %>
+
+                <strong>Completed</strong>
+
+            <% } else { %>
+
+                <strong>Pending</strong>
+
+            <% } %>
+        </p>
+
+        <% if (!task.completed) { %>
+
+            <form
+                action="/tasks/<%= task.id %>/complete"
+                method="POST"
+            >
+
+                <button type="submit">
+                    Mark as Completed
+                </button>
+
+            </form>
+
+        <% } %>
+
+        <form
+            action="/tasks/<%= task.id %>/delete"
+            method="POST"
+        >
+
+            <button
+                type="submit"
+                class="delete"
+            >
+                Delete Task
+            </button>
+
+        </form>
+
+    </main>
+
+</body>
+
+</html>
