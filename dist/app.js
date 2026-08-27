@@ -13,6 +13,7 @@ const database_1 = require("./config/database");
 const auth_routes_1 = __importDefault(require("./routes/auth.routes"));
 const task_routes_1 = __importDefault(require("./routes/task.routes"));
 const admin_routes_1 = __importDefault(require("./routes/admin.routes"));
+const task_api_routes_1 = __importDefault(require("./routes/api/v1/task.api.routes"));
 const auth_middleware_1 = require("./middleware/auth.middleware");
 const role_middleware_1 = require("./middleware/role.middleware");
 const app = (0, express_1.default)();
@@ -92,10 +93,16 @@ app.use((req, res, next) => {
 app.use("/auth", auth_routes_1.default);
 /*
     ============================
-    TASK ROUTES
+    TASK WEB ROUTES
     ============================
 */
 app.use("/tasks", auth_middleware_1.requireAuth, task_routes_1.default);
+/*
+    ============================
+    TASK REST API
+    ============================
+*/
+app.use("/api/v1/tasks", task_api_routes_1.default);
 /*
     ============================
     ADMIN ROUTES

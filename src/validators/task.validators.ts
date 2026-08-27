@@ -33,3 +33,31 @@ export const taskIdValidation = [
         .isInt({ min: 1 })
         .withMessage("Invalid task ID")
 ];
+export const patchTaskValidation = [
+
+    body("title")
+        .optional()
+        .trim()
+        .notEmpty()
+        .withMessage("Title cannot be empty")
+        .isLength({ max: 255 })
+        .withMessage(
+            "Title cannot exceed 255 characters"
+        ),
+
+    body("description")
+        .optional()
+        .trim()
+        .notEmpty()
+        .withMessage(
+            "Description cannot be empty"
+        ),
+
+    body("completed")
+        .optional()
+        .isBoolean()
+        .withMessage(
+            "Completed must be a boolean"
+        )
+        .toBoolean()
+];

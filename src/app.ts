@@ -11,6 +11,7 @@ import { sequelize } from "./config/database";
 import authRoutes from "./routes/auth.routes";
 import taskRoutes from "./routes/task.routes";
 import adminRoutes from "./routes/admin.routes";
+import taskApiRoutes from "./routes/api/v1/task.api.routes";
 
 import { requireAuth } from "./middleware/auth.middleware";
 import { requireRole } from "./middleware/role.middleware";
@@ -18,6 +19,7 @@ import { requireRole } from "./middleware/role.middleware";
 const app = express();
 
 const PORT = 3000;
+
 
 /*
     ============================
@@ -30,6 +32,7 @@ const PORT = 3000;
 */
 app.use(helmet());
 
+
 /*
     CORS
 */
@@ -40,18 +43,26 @@ app.use(
     })
 );
 
+
 /*
     ============================
     VIEW ENGINE
     ============================
 */
 
-app.set("view engine", "ejs");
+app.set(
+    "view engine",
+    "ejs"
+);
 
 app.set(
     "views",
-    path.join(process.cwd(), "views")
+    path.join(
+        process.cwd(),
+        "views"
+    )
 );
+
 
 /*
     ============================
@@ -65,7 +76,10 @@ app.use(
     })
 );
 
-app.use(express.json());
+app.use(
+    express.json()
+);
+
 
 /*
     ============================
@@ -75,9 +89,13 @@ app.use(express.json());
 
 app.use(
     express.static(
-        path.join(process.cwd(), "public")
+        path.join(
+            process.cwd(),
+            "public"
+        )
     )
 );
+
 
 /*
     ============================
@@ -87,6 +105,7 @@ app.use(
 
 app.use(
     session({
+
         secret:
             process.env.SESSION_SECRET ||
             "development-secret",
@@ -96,12 +115,15 @@ app.use(
         saveUninitialized: false,
 
         cookie: {
-            maxAge: 1000 * 60 * 60,
+
+            maxAge:
+                1000 * 60 * 60,
 
             httpOnly: true
         }
     })
 );
+
 
 /*
     ============================
@@ -110,7 +132,11 @@ app.use(
 */
 
 app.use(
-    (req, res, next) => {
+    (
+        req,
+        res,
+        next
+    ) => {
 
         res.locals.userId =
             req.session.userId;
@@ -125,6 +151,7 @@ app.use(
     }
 );
 
+
 /*
     ============================
     AUTH ROUTES
@@ -136,9 +163,10 @@ app.use(
     authRoutes
 );
 
+
 /*
     ============================
-    TASK ROUTES
+    TASK WEB ROUTES
     ============================
 */
 
@@ -147,6 +175,19 @@ app.use(
     requireAuth,
     taskRoutes
 );
+
+
+/*
+    ============================
+    TASK REST API
+    ============================
+*/
+
+app.use(
+    "/api/v1/tasks",
+    taskApiRoutes
+);
+
 
 /*
     ============================
@@ -161,6 +202,7 @@ app.use(
     adminRoutes
 );
 
+
 /*
     ============================
     HOME
@@ -169,15 +211,24 @@ app.use(
 
 app.get(
     "/",
-    (req, res) => {
+    (
+        req,
+        res
+    ) => {
 
         if (req.session.userId) {
-            return res.redirect("/tasks");
+
+            return res.redirect(
+                "/tasks"
+            );
         }
 
-        res.redirect("/auth/login");
+        res.redirect(
+            "/auth/login"
+        );
     }
 );
+
 
 /*
     ============================
@@ -195,6 +246,7 @@ async function startServer() {
             "Database connection successful"
         );
 
+
         await sequelize.sync({
             alter: true
         });
@@ -202,6 +254,7 @@ async function startServer() {
         console.log(
             "Database synchronized"
         );
+
 
         app.listen(
             PORT,
@@ -223,5 +276,6 @@ async function startServer() {
 
     }
 }
+
 
 startServer();
