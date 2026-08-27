@@ -2,11 +2,14 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const task_model_1 = require("../models/task.model");
+const task_validators_1 = require("../validators/task.validators");
+const validation_middleware_1 = require("../middleware/validation.middleware");
+const auth_middleware_1 = require("../middleware/auth.middleware");
 const router = (0, express_1.Router)();
 /*
     GET ALL USER TASKS
 */
-router.get("/", async (req, res) => {
+router.get("/", auth_middleware_1.requireAuth, async (req, res) => {
     try {
         const tasks = await task_model_1.Task.findAll({
             where: {
@@ -21,7 +24,7 @@ router.get("/", async (req, res) => {
         });
     }
     catch (error) {
-        console.error(error);
+        console.error("Fetch tasks error:", error);
         res.status(500).render("error", {
             message: "Unable to fetch tasks"
         });
@@ -30,13 +33,13 @@ router.get("/", async (req, res) => {
 /*
     CREATE TASK PAGE
 */
-router.get("/new", (req, res) => {
+router.get("/new", auth_middleware_1.requireAuth, (req, res) => {
     res.render("tasks/create");
 });
 /*
     CREATE TASK
 */
-router.post("/", async (req, res) => {
+router.post("/", auth_middleware_1.requireAuth, task_validators_1.createTaskValidation, validation_middleware_1.handleValidationErrors, async (req, res) => {
     try {
         const { title, description } = req.body;
         await task_model_1.Task.create({
@@ -48,7 +51,7 @@ router.post("/", async (req, res) => {
         res.redirect("/tasks");
     }
     catch (error) {
-        console.error(error);
+        console.error("Create task error:", error);
         res.status(500).render("error", {
             message: "Unable to create task"
         });
@@ -57,7 +60,7 @@ router.post("/", async (req, res) => {
 /*
     GET EDIT PAGE
 */
-router.get("/:id/edit", async (req, res) => {
+router.get("/:id/edit", auth_middleware_1.requireAuth, task_validators_1.taskIdValidation, validation_middleware_1.handleValidationErrors, async (req, res) => {
     try {
         const task = await task_model_1.Task.findOne({
             where: {
@@ -75,7 +78,7 @@ router.get("/:id/edit", async (req, res) => {
         });
     }
     catch (error) {
-        console.error(error);
+        console.error("Get task error:", error);
         res.status(500).render("error", {
             message: "Unable to fetch task"
         });
@@ -84,7 +87,7 @@ router.get("/:id/edit", async (req, res) => {
 /*
     UPDATE TASK
 */
-router.post("/:id", async (req, res) => {
+router.post("/:id", auth_middleware_1.requireAuth, task_validators_1.taskIdValidation, task_validators_1.updateTaskValidation, validation_middleware_1.handleValidationErrors, async (req, res) => {
     try {
         const task = await task_model_1.Task.findOne({
             where: {
@@ -105,16 +108,16 @@ router.post("/:id", async (req, res) => {
         res.redirect("/tasks");
     }
     catch (error) {
-        console.error(error);
+        console.error("Update task error:", error);
         res.status(500).render("error", {
             message: "Unable to update task"
         });
     }
 });
 /*
-    COMPLETE TASK
+    COMPLETE / UNCOMPLETE TASK
 */
-router.post("/:id/complete", async (req, res) => {
+router.post("/:id/complete", auth_middleware_1.requireAuth, task_validators_1.taskIdValidation, validation_middleware_1.handleValidationErrors, async (req, res) => {
     try {
         const task = await task_model_1.Task.findOne({
             where: {
@@ -133,7 +136,7 @@ router.post("/:id/complete", async (req, res) => {
         res.redirect("/tasks");
     }
     catch (error) {
-        console.error(error);
+        console.error("Complete task error:", error);
         res.status(500).render("error", {
             message: "Unable to update task"
         });
@@ -142,7 +145,7 @@ router.post("/:id/complete", async (req, res) => {
 /*
     DELETE TASK
 */
-router.post("/:id/delete", async (req, res) => {
+router.post("/:id/delete", auth_middleware_1.requireAuth, task_validators_1.taskIdValidation, validation_middleware_1.handleValidationErrors, async (req, res) => {
     try {
         const task = await task_model_1.Task.findOne({
             where: {
@@ -159,7 +162,7 @@ router.post("/:id/delete", async (req, res) => {
         res.redirect("/tasks");
     }
     catch (error) {
-        console.error(error);
+        console.error("Delete task error:", error);
         res.status(500).render("error", {
             message: "Unable to delete task"
         });

@@ -6,6 +6,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const user_model_1 = require("../models/user.model");
+const auth_validators_1 = require("../validators/auth.validators");
+const validation_middleware_1 = require("../middleware/validation.middleware");
+const rate_limit_middleware_1 = require("../middleware/rate-limit.middleware");
 const router = (0, express_1.Router)();
 /*
     REGISTER PAGE
@@ -16,14 +19,9 @@ router.get("/register", (req, res) => {
 /*
     REGISTER USER
 */
-router.post("/register", async (req, res) => {
+router.post("/register", auth_validators_1.registerValidation, validation_middleware_1.handleValidationErrors, async (req, res) => {
     try {
         const { username, password } = req.body;
-        if (!username || !password) {
-            return res.status(400).render("error", {
-                message: "Username and password are required"
-            });
-        }
         const existingUser = await user_model_1.User.findOne({
             where: {
                 username
@@ -58,7 +56,7 @@ router.get("/login", (req, res) => {
 /*
     LOGIN USER
 */
-router.post("/login", async (req, res) => {
+router.post("/login", rate_limit_middleware_1.loginLimiter, auth_validators_1.loginValidation, validation_middleware_1.handleValidationErrors, async (req, res) => {
     try {
         const { username, password } = req.body;
         const user = await user_model_1.User.findOne({
@@ -81,10 +79,8 @@ router.post("/login", async (req, res) => {
             Create session
         */
         req.session.userId = user.id;
-        req.session.username =
-            user.username;
-        req.session.role =
-            user.role;
+        req.session.username = user.username;
+        req.session.role = user.role;
         res.redirect("/tasks");
     }
     catch (error) {
@@ -101,7 +97,9 @@ router.post("/logout", (req, res) => {
     req.session.destroy((error) => {
         if (error) {
             console.error("Logout error:", error);
-            return res.status(500).send("Unable to logout");
+            return res
+                .status(500)
+                .send("Unable to logout");
         }
         res.redirect("/auth/login");
     });

@@ -6,6 +6,20 @@ import {
 
 import { Task } from "../models/task.model";
 
+import {
+    createTaskValidation,
+    updateTaskValidation,
+    taskIdValidation
+} from "../validators/task.validators";
+
+import {
+    handleValidationErrors
+} from "../middleware/validation.middleware";
+
+import {
+    requireAuth
+} from "../middleware/auth.middleware";
+
 const router = Router();
 
 /*
@@ -13,6 +27,7 @@ const router = Router();
 */
 router.get(
     "/",
+    requireAuth,
     async (
         req: Request,
         res: Response
@@ -20,17 +35,15 @@ router.get(
 
         try {
 
-            const tasks =
-                await Task.findAll({
-                    where: {
-                        userId:
-                            req.session.userId
-                    },
+            const tasks = await Task.findAll({
+                where: {
+                    userId: req.session.userId
+                },
 
-                    order: [
-                        ["createdAt", "DESC"]
-                    ]
-                });
+                order: [
+                    ["createdAt", "DESC"]
+                ]
+            });
 
             res.render(
                 "tasks/index",
@@ -41,7 +54,10 @@ router.get(
 
         } catch (error) {
 
-            console.error(error);
+            console.error(
+                "Fetch tasks error:",
+                error
+            );
 
             res.status(500).render(
                 "error",
@@ -59,6 +75,7 @@ router.get(
 */
 router.get(
     "/new",
+    requireAuth,
     (
         req: Request,
         res: Response
@@ -73,6 +90,13 @@ router.get(
 */
 router.post(
     "/",
+
+    requireAuth,
+
+    createTaskValidation,
+
+    handleValidationErrors,
+
     async (
         req: Request,
         res: Response
@@ -89,6 +113,7 @@ router.post(
                 title,
                 description,
                 completed: false,
+
                 userId:
                     req.session.userId!
             });
@@ -97,7 +122,10 @@ router.post(
 
         } catch (error) {
 
-            console.error(error);
+            console.error(
+                "Create task error:",
+                error
+            );
 
             res.status(500).render(
                 "error",
@@ -115,6 +143,13 @@ router.post(
 */
 router.get(
     "/:id/edit",
+
+    requireAuth,
+
+    taskIdValidation,
+
+    handleValidationErrors,
+
     async (
         req: Request,
         res: Response
@@ -153,7 +188,10 @@ router.get(
 
         } catch (error) {
 
-            console.error(error);
+            console.error(
+                "Get task error:",
+                error
+            );
 
             res.status(500).render(
                 "error",
@@ -171,6 +209,15 @@ router.get(
 */
 router.post(
     "/:id",
+
+    requireAuth,
+
+    taskIdValidation,
+
+    updateTaskValidation,
+
+    handleValidationErrors,
+
     async (
         req: Request,
         res: Response
@@ -212,7 +259,10 @@ router.post(
 
         } catch (error) {
 
-            console.error(error);
+            console.error(
+                "Update task error:",
+                error
+            );
 
             res.status(500).render(
                 "error",
@@ -226,10 +276,17 @@ router.post(
 );
 
 /*
-    COMPLETE TASK
+    COMPLETE / UNCOMPLETE TASK
 */
 router.post(
     "/:id/complete",
+
+    requireAuth,
+
+    taskIdValidation,
+
+    handleValidationErrors,
+
     async (
         req: Request,
         res: Response
@@ -268,7 +325,10 @@ router.post(
 
         } catch (error) {
 
-            console.error(error);
+            console.error(
+                "Complete task error:",
+                error
+            );
 
             res.status(500).render(
                 "error",
@@ -286,6 +346,13 @@ router.post(
 */
 router.post(
     "/:id/delete",
+
+    requireAuth,
+
+    taskIdValidation,
+
+    handleValidationErrors,
+
     async (
         req: Request,
         res: Response
@@ -321,7 +388,10 @@ router.post(
 
         } catch (error) {
 
-            console.error(error);
+            console.error(
+                "Delete task error:",
+                error
+            );
 
             res.status(500).render(
                 "error",

@@ -1,12 +1,20 @@
-import {
-    Router,
-    Request,
-    Response
-} from "express";
-
+import { Router, Request, Response } from "express";
 import bcrypt from "bcrypt";
 
 import { User } from "../models/user.model";
+
+import {
+    loginValidation,
+    registerValidation
+} from "../validators/auth.validators";
+
+import {
+    handleValidationErrors
+} from "../middleware/validation.middleware";
+
+import {
+    loginLimiter
+} from "../middleware/rate-limit.middleware";
 
 const router = Router();
 
@@ -16,7 +24,6 @@ const router = Router();
 router.get(
     "/register",
     (req: Request, res: Response) => {
-
         res.render("auth/register");
     }
 );
@@ -26,52 +33,31 @@ router.get(
 */
 router.post(
     "/register",
-    async (
-        req: Request,
-        res: Response
-    ) => {
+
+    registerValidation,
+
+    handleValidationErrors,
+
+    async (req: Request, res: Response) => {
 
         try {
 
-            const {
-                username,
-                password
-            } = req.body;
+            const { username, password } = req.body;
 
-            if (!username || !password) {
-
-                return res.status(400).render(
-                    "error",
-                    {
-                        message:
-                            "Username and password are required"
-                    }
-                );
-            }
-
-            const existingUser =
-                await User.findOne({
-                    where: {
-                        username
-                    }
-                });
+            const existingUser = await User.findOne({
+                where: {
+                    username
+                }
+            });
 
             if (existingUser) {
-
-                return res.status(400).render(
-                    "error",
-                    {
-                        message:
-                            "Username already exists"
-                    }
-                );
+                return res.status(400).render("error", {
+                    message: "Username already exists"
+                });
             }
 
             const hashedPassword =
-                await bcrypt.hash(
-                    password,
-                    10
-                );
+                await bcrypt.hash(password, 10);
 
             await User.create({
                 username,
@@ -88,13 +74,9 @@ router.post(
                 error
             );
 
-            res.status(500).render(
-                "error",
-                {
-                    message:
-                        "Registration failed"
-                }
-            );
+            res.status(500).render("error", {
+                message: "Registration failed"
+            });
         }
     }
 );
@@ -105,7 +87,6 @@ router.post(
 router.get(
     "/login",
     (req: Request, res: Response) => {
-
         res.render("auth/login");
     }
 );
@@ -115,34 +96,30 @@ router.get(
 */
 router.post(
     "/login",
-    async (
-        req: Request,
-        res: Response
-    ) => {
+
+    loginLimiter,
+
+    loginValidation,
+
+    handleValidationErrors,
+
+    async (req: Request, res: Response) => {
 
         try {
 
-            const {
-                username,
-                password
-            } = req.body;
+            const { username, password } = req.body;
 
-            const user =
-                await User.findOne({
-                    where: {
-                        username
-                    }
-                });
+            const user = await User.findOne({
+                where: {
+                    username
+                }
+            });
 
             if (!user) {
-
-                return res.status(401).render(
-                    "error",
-                    {
-                        message:
-                            "Invalid username or password"
-                    }
-                );
+                return res.status(401).render("error", {
+                    message:
+                        "Invalid username or password"
+                });
             }
 
             const passwordMatch =
@@ -152,14 +129,10 @@ router.post(
                 );
 
             if (!passwordMatch) {
-
-                return res.status(401).render(
-                    "error",
-                    {
-                        message:
-                            "Invalid username or password"
-                    }
-                );
+                return res.status(401).render("error", {
+                    message:
+                        "Invalid username or password"
+                });
             }
 
             /*
@@ -167,12 +140,8 @@ router.post(
             */
 
             req.session.userId = user.id;
-
-            req.session.username =
-                user.username;
-
-            req.session.role =
-                user.role;
+            req.session.username = user.username;
+            req.session.role = user.role;
 
             res.redirect("/tasks");
 
@@ -183,13 +152,9 @@ router.post(
                 error
             );
 
-            res.status(500).render(
-                "error",
-                {
-                    message:
-                        "Login failed"
-                }
-            );
+            res.status(500).render("error", {
+                message: "Login failed"
+            });
         }
     }
 );
@@ -199,31 +164,24 @@ router.post(
 */
 router.post(
     "/logout",
-    (
-        req: Request,
-        res: Response
-    ) => {
+    (req: Request, res: Response) => {
 
-        req.session.destroy(
-            (error) => {
+        req.session.destroy((error) => {
 
-                if (error) {
+            if (error) {
 
-                    console.error(
-                        "Logout error:",
-                        error
-                    );
-
-                    return res.status(500).send(
-                        "Unable to logout"
-                    );
-                }
-
-                res.redirect(
-                    "/auth/login"
+                console.error(
+                    "Logout error:",
+                    error
                 );
+
+                return res
+                    .status(500)
+                    .send("Unable to logout");
             }
-        );
+
+            res.redirect("/auth/login");
+        });
     }
 );
 

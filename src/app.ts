@@ -1,12 +1,12 @@
 import "dotenv/config";
+
 import express from "express";
 import session from "express-session";
 import path from "path";
+import helmet from "helmet";
+import cors from "cors";
 
 import { sequelize } from "./config/database";
-
-import { User } from "./models/user.model";
-import { Task } from "./models/task.model";
 
 import authRoutes from "./routes/auth.routes";
 import taskRoutes from "./routes/task.routes";
@@ -20,49 +20,71 @@ const app = express();
 const PORT = 3000;
 
 /*
-    EJS
+    ============================
+    SECURITY MIDDLEWARE
+    ============================
 */
-app.set(
-    "view engine",
-    "ejs"
-);
 
-app.set(
-    "views",
-    path.join(
-        process.cwd(),
-        "views"
-    )
+/*
+    Helmet
+*/
+app.use(helmet());
+
+/*
+    CORS
+*/
+app.use(
+    cors({
+        origin: "http://localhost:3000",
+        credentials: true
+    })
 );
 
 /*
-    BODY PARSER
+    ============================
+    VIEW ENGINE
+    ============================
 */
+
+app.set("view engine", "ejs");
+
+app.set(
+    "views",
+    path.join(process.cwd(), "views")
+);
+
+/*
+    ============================
+    BODY PARSER
+    ============================
+*/
+
 app.use(
     express.urlencoded({
         extended: true
     })
 );
 
-app.use(
-    express.json()
-);
+app.use(express.json());
 
 /*
+    ============================
     STATIC FILES
+    ============================
 */
+
 app.use(
     express.static(
-        path.join(
-            process.cwd(),
-            "public"
-        )
+        path.join(process.cwd(), "public")
     )
 );
 
 /*
+    ============================
     SESSION
+    ============================
 */
+
 app.use(
     session({
         secret:
@@ -74,8 +96,7 @@ app.use(
         saveUninitialized: false,
 
         cookie: {
-            maxAge:
-                1000 * 60 * 60,
+            maxAge: 1000 * 60 * 60,
 
             httpOnly: true
         }
@@ -83,15 +104,13 @@ app.use(
 );
 
 /*
-    SESSION DATA AVAILABLE
-    TO EJS
+    ============================
+    SESSION DATA FOR EJS
+    ============================
 */
+
 app.use(
-    (
-        req,
-        res,
-        next
-    ) => {
+    (req, res, next) => {
 
         res.locals.userId =
             req.session.userId;
@@ -107,17 +126,22 @@ app.use(
 );
 
 /*
+    ============================
     AUTH ROUTES
+    ============================
 */
+
 app.use(
     "/auth",
     authRoutes
 );
 
 /*
+    ============================
     TASK ROUTES
-    LOGIN REQUIRED
+    ============================
 */
+
 app.use(
     "/tasks",
     requireAuth,
@@ -125,9 +149,11 @@ app.use(
 );
 
 /*
+    ============================
     ADMIN ROUTES
-    LOGIN + ADMIN REQUIRED
+    ============================
 */
+
 app.use(
     "/admin",
     requireAuth,
@@ -136,30 +162,29 @@ app.use(
 );
 
 /*
+    ============================
     HOME
+    ============================
 */
+
 app.get(
     "/",
-    (
-        req,
-        res
-    ) => {
+    (req, res) => {
 
         if (req.session.userId) {
-            return res.redirect(
-                "/tasks"
-            );
+            return res.redirect("/tasks");
         }
 
-        res.redirect(
-            "/auth/login"
-        );
+        res.redirect("/auth/login");
     }
 );
 
 /*
+    ============================
     DATABASE + SERVER
+    ============================
 */
+
 async function startServer() {
 
     try {
@@ -185,6 +210,7 @@ async function startServer() {
                 console.log(
                     `Server running at http://localhost:${PORT}`
                 );
+
             }
         );
 
@@ -194,6 +220,7 @@ async function startServer() {
             "Unable to connect to database:",
             error
         );
+
     }
 }
 
