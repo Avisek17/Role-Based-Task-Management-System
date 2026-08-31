@@ -1,503 +1,754 @@
-import {
-    Router,
-    Request,
-    Response
-} from "express";
+import { Router, Request, Response, NextFunction } from "express";
 
-import {
-    validationResult
-} from "express-validator";
+import { Op } from "sequelize";
 
 import { Task } from "../../../models/task.model";
 
+import { TaskAttachment } from "../../../models/taskAttachment.model";
+
 import {
-    createTaskValidation,
-    updateTaskValidation,
-    taskIdValidation,
-    patchTaskValidation
+  createTaskValidation,
+  updateTaskValidation,
+  taskIdValidation,
 } from "../../../validators/task.validators";
+
+import { handleValidationErrors } from "../../../middleware/validation.middleware";
 
 import { requireAuth } from "../../../middleware/auth.middleware";
 
+import { upload } from "../../../middleware/upload.middleware";
+
+import { AppError } from "../../../errors/AppError";
+
+import fs from "fs/promises";
+
 const router = Router();
 
-
 /*
-    ============================
-    VALIDATION ERROR HANDLER
-    ============================
+    ==================================================
+    GET ALL TASKS
+    ==================================================
+
+    GET /api/v1/tasks
+
+    Pagination:
+
+    GET /api/v1/tasks?page=1&limit=10
+
+    Filtering:
+
+    GET /api/v1/tasks?completed=true
+
+    Search:
+
+    GET /api/v1/tasks?search=node
+
+    Combined:
+
+    GET /api/v1/tasks?
+        search=node&
+        completed=false&
+        page=1&
+        limit=10
 */
 
-const handleApiValidationErrors = (
-    req: Request,
-    res: Response,
-    next: Function
-) => {
+router.get(
+  "/",
 
-    const errors = validationResult(req);
+  requireAuth,
 
-    if (!errors.isEmpty()) {
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      /*
+                ============================
+                PAGINATION
+                ============================
+            */
 
-        return res.status(400).json({
-            success: false,
-            errors: errors.array()
-        });
+      const page = Math.max(Number(req.query.page) || 1, 1);
+
+      const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 100);
+
+      const offset = (page - 1) * limit;
+
+      /*
+                ============================
+                BASE WHERE CONDITION
+                ============================
+            */
+
+      const where: any = {
+        userId: req.session.userId,
+      };
+
+      /*
+                ============================
+                COMPLETED FILTER
+                ============================
+            */
+
+      if (req.query.completed !== undefined) {
+        if (req.query.completed !== "true" && req.query.completed !== "false") {
+          throw new AppError("completed must be true or false", 400);
+        }
+
+        where.completed = req.query.completed === "true";
+      }
+
+      /*
+                ============================
+                SEARCH FILTER
+                ============================
+            */
+
+      if (
+        typeof req.query.search === "string" &&
+        req.query.search.trim() !== ""
+      ) {
+        const search = req.query.search.trim();
+
+        where[Op.or] = [
+          {
+            title: {
+              [Op.like]: `%${search}%`,
+            },
+          },
+
+          {
+            description: {
+              [Op.like]: `%${search}%`,
+            },
+          },
+        ];
+      }
+
+      /*
+                ============================
+                DATABASE QUERY
+                ============================
+            */
+
+      const result = await Task.findAndCountAll({
+        where,
+
+        /*
+                        Return only fields
+                        required by the API.
+                    */
+
+        attributes: [
+          "id",
+
+          "title",
+
+          "description",
+
+          "completed",
+
+          "createdAt",
+
+          "updatedAt",
+        ],
+
+        limit,
+
+        offset,
+
+        order: [["createdAt", "DESC"]],
+      });
+
+      /*
+                ============================
+                RESPONSE
+                ============================
+            */
+
+      return res.status(200).json({
+        success: true,
+
+        data: result.rows,
+
+        pagination: {
+          page,
+
+          limit,
+
+          totalItems: result.count,
+
+          totalPages: Math.ceil(result.count / limit),
+        },
+      });
+    } catch (error) {
+      next(error);
     }
-
-    next();
-};
-
+  },
+);
 
 /*
-    ============================
+    ==================================================
+    GET TASK BY ID
+    ==================================================
+
+    GET /api/v1/tasks/:id
+*/
+
+router.get(
+  "/:id",
+
+  requireAuth,
+
+  taskIdValidation,
+
+  handleValidationErrors,
+
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const task = await Task.findOne({
+        where: {
+          id: Number(req.params.id),
+
+          userId: req.session.userId,
+        },
+
+        /*
+                        Only return required fields.
+                    */
+
+        attributes: [
+          "id",
+
+          "title",
+
+          "description",
+
+          "completed",
+
+          "createdAt",
+
+          "updatedAt",
+        ],
+      });
+
+      /*
+                ============================
+                TASK NOT FOUND
+                ============================
+            */
+
+      if (!task) {
+        throw new AppError("Task not found", 404);
+      }
+
+      /*
+                ============================
+                RESPONSE
+                ============================
+            */
+
+      return res.status(200).json({
+        success: true,
+
+        data: task,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+/*
+    ==================================================
     CREATE TASK
+    ==================================================
+
     POST /api/v1/tasks
-    ============================
 */
 
 router.post(
-    "/",
+  "/",
 
-    requireAuth,
+  requireAuth,
 
-    createTaskValidation,
+  createTaskValidation,
 
-    handleApiValidationErrors,
+  handleValidationErrors,
 
-    async (
-        req: Request,
-        res: Response
-    ) => {
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { title, description } = req.body;
 
-        try {
+      /*
+                ============================
+                CREATE TASK
+                ============================
+            */
 
-            const {
-                title,
-                description
-            } = req.body;
+      const task = await Task.create({
+        title,
 
-            const task = await Task.create({
+        description,
 
-                title,
+        completed: false,
 
-                description,
+        userId: req.session.userId!,
+      });
 
-                completed: false,
+      /*
+                ============================
+                RESPONSE
+                ============================
+            */
 
-                userId:
-                    req.session.userId!
-            });
+      return res.status(201).json({
+        success: true,
 
-            return res.status(201).json({
+        message: "Task created successfully",
 
-                success: true,
+        data: {
+          id: task.id,
 
-                message:
-                    "Task created successfully",
+          title: task.title,
 
-                data: task
-            });
+          description: task.description,
 
-        } catch (error) {
+          completed: task.completed,
 
-            console.error(
-                "API create task error:",
-                error
-            );
+          createdAt: task.createdAt,
 
-            return res.status(500).json({
-
-                success: false,
-
-                message:
-                    "Unable to create task"
-            });
-        }
+          updatedAt: task.updatedAt,
+        },
+      });
+    } catch (error) {
+      next(error);
     }
+  },
 );
 
-
 /*
-    ============================
-    GET ALL TASKS
-    GET /api/v1/tasks
-    ============================
-*/
-
-router.get(
-    "/",
-
-    requireAuth,
-
-    async (
-        req: Request,
-        res: Response
-    ) => {
-
-        try {
-
-            const tasks = await Task.findAll({
-
-                where: {
-                    userId:
-                        req.session.userId
-                },
-
-                order: [
-                    ["createdAt", "DESC"]
-                ]
-            });
-
-            return res.status(200).json({
-
-                success: true,
-
-                data: tasks
-            });
-
-        } catch (error) {
-
-            console.error(
-                "API fetch tasks error:",
-                error
-            );
-
-            return res.status(500).json({
-
-                success: false,
-
-                message:
-                    "Unable to fetch tasks"
-            });
-        }
-    }
-);
-
-
-/*
-    ============================
-    GET TASK BY ID
-    GET /api/v1/tasks/:id
-    ============================
-*/
-
-router.get(
-    "/:id",
-
-    requireAuth,
-
-    taskIdValidation,
-
-    handleApiValidationErrors,
-
-    async (
-        req: Request,
-        res: Response
-    ) => {
-
-        try {
-
-            const task = await Task.findOne({
-
-                where: {
-
-                    id:
-                        Number(req.params.id),
-
-                    userId:
-                        req.session.userId
-                }
-            });
-
-            if (!task) {
-
-                return res.status(404).json({
-
-                    success: false,
-
-                    message:
-                        "Task not found"
-                });
-            }
-
-            return res.status(200).json({
-
-                success: true,
-
-                data: task
-            });
-
-        } catch (error) {
-
-            console.error(
-                "API get task error:",
-                error
-            );
-
-            return res.status(500).json({
-
-                success: false,
-
-                message:
-                    "Unable to fetch task"
-            });
-        }
-    }
-);
-
-
-/*
-    ============================
+    ==================================================
     UPDATE TASK
+    ==================================================
+
     PUT /api/v1/tasks/:id
-    ============================
 */
 
 router.put(
-    "/:id",
+  "/:id",
 
-    requireAuth,
+  requireAuth,
 
-    taskIdValidation,
+  taskIdValidation,
 
-    updateTaskValidation,
+  updateTaskValidation,
 
-    handleApiValidationErrors,
+  handleValidationErrors,
 
-    async (
-        req: Request,
-        res: Response
-    ) => {
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      /*
+                ============================
+                FIND TASK
+                ============================
+            */
 
-        try {
+      const task = await Task.findOne({
+        where: {
+          id: Number(req.params.id),
 
-            const task = await Task.findOne({
+          userId: req.session.userId,
+        },
+      });
 
-                where: {
+      /*
+                ============================
+                TASK NOT FOUND
+                ============================
+            */
 
-                    id:
-                        Number(req.params.id),
+      if (!task) {
+        throw new AppError("Task not found", 404);
+      }
 
-                    userId:
-                        req.session.userId
-                }
-            });
+      /*
+                ============================
+                UPDATE TASK
+                ============================
+            */
 
-            if (!task) {
+      task.title = req.body.title;
 
-                return res.status(404).json({
+      task.description = req.body.description;
 
-                    success: false,
+      await task.save();
 
-                    message:
-                        "Task not found"
-                });
-            }
+      /*
+                ============================
+                RESPONSE
+                ============================
+            */
 
-            task.title =
-                req.body.title;
+      return res.status(200).json({
+        success: true,
 
-            task.description =
-                req.body.description;
+        message: "Task updated successfully",
 
-            await task.save();
+        data: {
+          id: task.id,
 
-            return res.status(200).json({
+          title: task.title,
 
-                success: true,
+          description: task.description,
 
-                message:
-                    "Task updated successfully",
+          completed: task.completed,
 
-                data: task
-            });
+          createdAt: task.createdAt,
 
-        } catch (error) {
-
-            console.error(
-                "API update task error:",
-                error
-            );
-
-            return res.status(500).json({
-
-                success: false,
-
-                message:
-                    "Unable to update task"
-            });
-        }
+          updatedAt: task.updatedAt,
+        },
+      });
+    } catch (error) {
+      next(error);
     }
+  },
 );
 
-
 /*
-    ============================
-    PARTIAL UPDATE
+    ==================================================
+    PARTIAL UPDATE TASK
+    ==================================================
+
     PATCH /api/v1/tasks/:id
-    ============================
 */
 
 router.patch(
-    "/:id",
+  "/:id",
 
-    requireAuth,
+  requireAuth,
 
-    taskIdValidation,
+  taskIdValidation,
 
-    patchTaskValidation,
+  handleValidationErrors,
 
-    handleApiValidationErrors,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      /*
+                ============================
+                FIND TASK
+                ============================
+            */
 
-    async (
-        req: Request,
-        res: Response
-    ) => {
+      const task = await Task.findOne({
+        where: {
+          id: Number(req.params.id),
 
-        try {
+          userId: req.session.userId,
+        },
+      });
 
-            const task = await Task.findOne({
+      /*
+                ============================
+                TASK NOT FOUND
+                ============================
+            */
 
-                where: {
+      if (!task) {
+        throw new AppError("Task not found", 404);
+      }
 
-                    id:
-                        Number(req.params.id),
+      /*
+                ============================
+                TITLE
+                ============================
+            */
 
-                    userId:
-                        req.session.userId
-                }
-            });
-
-            if (!task) {
-
-                return res.status(404).json({
-
-                    success: false,
-
-                    message:
-                        "Task not found"
-                });
-            }
-
-            if (
-                req.body.title !== undefined
-            ) {
-                task.title =
-                    req.body.title;
-            }
-
-            if (
-                req.body.description !== undefined
-            ) {
-                task.description =
-                    req.body.description;
-            }
-
-            if (
-                req.body.completed !== undefined
-            ) {
-                task.completed =
-                    req.body.completed;
-            }
-
-            await task.save();
-
-            return res.status(200).json({
-
-                success: true,
-
-                message:
-                    "Task updated successfully",
-
-                data: task
-            });
-
-        } catch (error) {
-
-            console.error(
-                "API patch task error:",
-                error
-            );
-
-            return res.status(500).json({
-
-                success: false,
-
-                message:
-                    "Unable to update task"
-            });
+      if (req.body.title !== undefined) {
+        if (typeof req.body.title !== "string") {
+          throw new AppError("Title must be a string", 400);
         }
+
+        const title = req.body.title.trim();
+
+        if (title.length === 0) {
+          throw new AppError("Title is required", 400);
+        }
+
+        if (title.length > 255) {
+          throw new AppError("Title cannot exceed 255 characters", 400);
+        }
+
+        task.title = title;
+      }
+
+      /*
+                ============================
+                DESCRIPTION
+                ============================
+            */
+
+      if (req.body.description !== undefined) {
+        if (typeof req.body.description !== "string") {
+          throw new AppError("Description must be a string", 400);
+        }
+
+        const description = req.body.description.trim();
+
+        if (description.length === 0) {
+          throw new AppError("Description is required", 400);
+        }
+
+        task.description = description;
+      }
+
+      /*
+                ============================
+                COMPLETED
+                ============================
+            */
+
+      if (req.body.completed !== undefined) {
+        if (typeof req.body.completed !== "boolean") {
+          throw new AppError("Completed must be a boolean", 400);
+        }
+
+        task.completed = req.body.completed;
+      }
+
+      /*
+                ============================
+                SAVE
+                ============================
+            */
+
+      await task.save();
+
+      /*
+                ============================
+                RESPONSE
+                ============================
+            */
+
+      return res.status(200).json({
+        success: true,
+
+        message: "Task updated successfully",
+
+        data: {
+          id: task.id,
+
+          title: task.title,
+
+          description: task.description,
+
+          completed: task.completed,
+
+          createdAt: task.createdAt,
+
+          updatedAt: task.updatedAt,
+        },
+      });
+    } catch (error) {
+      next(error);
     }
+  },
 );
 
-
 /*
-    ============================
+    ==================================================
     DELETE TASK
+    ==================================================
+
     DELETE /api/v1/tasks/:id
-    ============================
 */
 
 router.delete(
-    "/:id",
+  "/:id",
 
-    requireAuth,
+  requireAuth,
 
-    taskIdValidation,
+  taskIdValidation,
 
-    handleApiValidationErrors,
+  handleValidationErrors,
 
-    async (
-        req: Request,
-        res: Response
-    ) => {
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      /*
+                ============================
+                FIND TASK
+                ============================
+            */
 
-        try {
+      const task = await Task.findOne({
+        where: {
+          id: Number(req.params.id),
 
-            const task = await Task.findOne({
+          userId: req.session.userId,
+        },
+      });
 
-                where: {
+      /*
+                ============================
+                TASK NOT FOUND
+                ============================
+            */
 
-                    id:
-                        Number(req.params.id),
+      if (!task) {
+        throw new AppError("Task not found", 404);
+      }
 
-                    userId:
-                        req.session.userId
-                }
-            });
+      /*
+                ============================
+                DELETE
+                ============================
+            */
 
-            if (!task) {
+      await task.destroy();
 
-                return res.status(404).json({
+      /*
+                ============================
+                RESPONSE
+                ============================
+            */
 
-                    success: false,
-
-                    message:
-                        "Task not found"
-                });
-            }
-
-            await task.destroy();
-
-            return res.status(204).send();
-
-        } catch (error) {
-
-            console.error(
-                "API delete task error:",
-                error
-            );
-
-            return res.status(500).json({
-
-                success: false,
-
-                message:
-                    "Unable to delete task"
-            });
-        }
+      return res.status(204).send();
+    } catch (error) {
+      next(error);
     }
+  },
 );
 
+/*
+    ==================================================
+    UPLOAD TASK ATTACHMENT
+    ==================================================
+
+    POST /api/v1/tasks/:id/attachments
+
+    Content-Type:
+
+    multipart/form-data
+
+    Field name:
+
+    file
+*/
+
+router.post(
+  "/:id/attachments",
+
+  requireAuth,
+
+  taskIdValidation,
+
+  handleValidationErrors,
+
+  upload.single("file"),
+
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      /*
+                ============================
+                FIND TASK
+                ============================
+            */
+
+      const task = await Task.findOne({
+        where: {
+          id: Number(req.params.id),
+
+          userId: req.session.userId,
+        },
+      });
+
+      /*
+                ============================
+                TASK NOT FOUND
+                ============================
+            */
+
+      if (!task) {
+        /*
+                    Remove uploaded file
+                    if it already exists.
+                */
+
+        if (req.file) {
+          await fs.unlink(req.file.path).catch(() => {});
+        }
+
+        throw new AppError("Task not found", 404);
+      }
+
+      /*
+                ============================
+                FILE REQUIRED
+                ============================
+            */
+
+      if (!req.file) {
+        throw new AppError("File is required", 400);
+      }
+
+      /*
+                ============================
+                SAVE FILE METADATA
+                ============================
+            */
+
+      const attachment = await TaskAttachment.create({
+        taskId: task.id,
+
+        originalName: req.file.originalname,
+
+        fileName: req.file.filename,
+
+        filePath: req.file.path,
+
+        mimeType: req.file.mimetype,
+
+        size: req.file.size,
+      });
+
+      /*
+                ============================
+                RESPONSE
+                ============================
+            */
+
+      return res.status(201).json({
+        success: true,
+
+        message: "File uploaded successfully",
+
+        data: {
+          id: attachment.id,
+
+          taskId: attachment.taskId,
+
+          originalName: attachment.originalName,
+
+          fileName: attachment.fileName,
+
+          mimeType: attachment.mimeType,
+
+          size: attachment.size,
+
+          createdAt: attachment.createdAt,
+        },
+      });
+    } catch (error) {
+      /*
+                If database creation fails
+                after the file was saved,
+                remove the orphan file.
+            */
+
+      if (req.file) {
+        await fs.unlink(req.file.path).catch(() => {});
+      }
+
+      next(error);
+    }
+  },
+);
 
 export default router;

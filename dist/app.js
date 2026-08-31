@@ -4,6 +4,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 require("dotenv/config");
+/*
+    Load models before sequelize.sync()
+*/
+require("./models/taskAttachment.model");
 const express_1 = __importDefault(require("express"));
 const express_session_1 = __importDefault(require("express-session"));
 const path_1 = __importDefault(require("path"));
@@ -16,6 +20,7 @@ const admin_routes_1 = __importDefault(require("./routes/admin.routes"));
 const task_api_routes_1 = __importDefault(require("./routes/api/v1/task.api.routes"));
 const auth_middleware_1 = require("./middleware/auth.middleware");
 const role_middleware_1 = require("./middleware/role.middleware");
+const error_middleware_1 = require("./middleware/error.middleware");
 const app = (0, express_1.default)();
 const PORT = 3000;
 /*
@@ -32,7 +37,7 @@ app.use((0, helmet_1.default)());
 */
 app.use((0, cors_1.default)({
     origin: "http://localhost:3000",
-    credentials: true
+    credentials: true,
 }));
 /*
     ============================
@@ -47,7 +52,7 @@ app.set("views", path_1.default.join(process.cwd(), "views"));
     ============================
 */
 app.use(express_1.default.urlencoded({
-    extended: true
+    extended: true,
 }));
 app.use(express_1.default.json());
 /*
@@ -55,21 +60,27 @@ app.use(express_1.default.json());
     STATIC FILES
     ============================
 */
+/*
+    Public files
+*/
 app.use(express_1.default.static(path_1.default.join(process.cwd(), "public")));
+/*
+    Uploaded files
+*/
+app.use("/uploads", express_1.default.static(path_1.default.join(process.cwd(), "uploads")));
 /*
     ============================
     SESSION
     ============================
 */
 app.use((0, express_session_1.default)({
-    secret: process.env.SESSION_SECRET ||
-        "development-secret",
+    secret: process.env.SESSION_SECRET || "development-secret",
     resave: false,
     saveUninitialized: false,
     cookie: {
         maxAge: 1000 * 60 * 60,
-        httpOnly: true
-    }
+        httpOnly: true,
+    },
 }));
 /*
     ============================
@@ -77,12 +88,9 @@ app.use((0, express_session_1.default)({
     ============================
 */
 app.use((req, res, next) => {
-    res.locals.userId =
-        req.session.userId;
-    res.locals.username =
-        req.session.username;
-    res.locals.role =
-        req.session.role;
+    res.locals.userId = req.session.userId;
+    res.locals.username = req.session.username;
+    res.locals.role = req.session.role;
     next();
 });
 /*
@@ -118,8 +126,37 @@ app.get("/", (req, res) => {
     if (req.session.userId) {
         return res.redirect("/tasks");
     }
-    res.redirect("/auth/login");
+    return res.redirect("/auth/login");
 });
+/*
+    ============================
+    404 HANDLER
+    ============================
+*/
+app.use((req, res) => {
+    /*
+              REST API requests
+              receive JSON.
+          */
+    if (req.originalUrl.startsWith("/api/")) {
+        return res.status(404).json({
+            success: false,
+            message: "Route not found",
+        });
+    }
+    /*
+              Normal web requests
+          */
+    return res.status(404).render("error", {
+        message: "Page not found",
+    });
+});
+/*
+    ============================
+    CENTRALIZED ERROR HANDLER
+    ============================
+*/
+app.use(error_middleware_1.errorHandler);
 /*
     ============================
     DATABASE + SERVER
@@ -127,12 +164,21 @@ app.get("/", (req, res) => {
 */
 async function startServer() {
     try {
+        /*
+                Test database connection
+            */
         await database_1.sequelize.authenticate();
         console.log("Database connection successful");
+        /*
+                Synchronize models
+            */
         await database_1.sequelize.sync({
-            alter: true
+            alter: true,
         });
         console.log("Database synchronized");
+        /*
+                Start server
+            */
         app.listen(PORT, () => {
             console.log(`Server running at http://localhost:${PORT}`);
         });
