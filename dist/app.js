@@ -1,27 +1,22 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-require("dotenv/config");
+import "dotenv/config";
 /*
     Load models before sequelize.sync()
 */
-require("./models/taskAttachment.model");
-const express_1 = __importDefault(require("express"));
-const express_session_1 = __importDefault(require("express-session"));
-const path_1 = __importDefault(require("path"));
-const helmet_1 = __importDefault(require("helmet"));
-const cors_1 = __importDefault(require("cors"));
-const database_1 = require("./config/database");
-const auth_routes_1 = __importDefault(require("./routes/auth.routes"));
-const task_routes_1 = __importDefault(require("./routes/task.routes"));
-const admin_routes_1 = __importDefault(require("./routes/admin.routes"));
-const task_api_routes_1 = __importDefault(require("./routes/api/v1/task.api.routes"));
-const auth_middleware_1 = require("./middleware/auth.middleware");
-const role_middleware_1 = require("./middleware/role.middleware");
-const error_middleware_1 = require("./middleware/error.middleware");
-const app = (0, express_1.default)();
+import "../legacy-express/models/taskAttachment.model";
+import express from "express";
+import session from "express-session";
+import path from "path";
+import helmet from "helmet";
+import cors from "cors";
+import { sequelize } from "./config/database";
+import authRoutes from "./routes/auth.routes";
+import taskRoutes from "./routes/task.routes";
+import adminRoutes from "./routes/admin.routes";
+import taskApiRoutes from "./routes/api/v1/task.api.routes";
+import { requireAuth } from "../legacy-express/middleware/auth.middleware";
+import { requireRole } from "../legacy-express/middleware/role.middleware";
+import { errorHandler } from "../legacy-express/middleware/error.middleware";
+const app = express();
 const PORT = 3000;
 /*
     ============================
@@ -31,11 +26,11 @@ const PORT = 3000;
 /*
     Helmet
 */
-app.use((0, helmet_1.default)());
+app.use(helmet());
 /*
     CORS
 */
-app.use((0, cors_1.default)({
+app.use(cors({
     origin: "http://localhost:3000",
     credentials: true,
 }));
@@ -45,16 +40,16 @@ app.use((0, cors_1.default)({
     ============================
 */
 app.set("view engine", "ejs");
-app.set("views", path_1.default.join(process.cwd(), "views"));
+app.set("views", path.join(process.cwd(), "views"));
 /*
     ============================
     BODY PARSER
     ============================
 */
-app.use(express_1.default.urlencoded({
+app.use(express.urlencoded({
     extended: true,
 }));
-app.use(express_1.default.json());
+app.use(express.json());
 /*
     ============================
     STATIC FILES
@@ -63,17 +58,17 @@ app.use(express_1.default.json());
 /*
     Public files
 */
-app.use(express_1.default.static(path_1.default.join(process.cwd(), "public")));
+app.use(express.static(path.join(process.cwd(), "public")));
 /*
     Uploaded files
 */
-app.use("/uploads", express_1.default.static(path_1.default.join(process.cwd(), "uploads")));
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 /*
     ============================
     SESSION
     ============================
 */
-app.use((0, express_session_1.default)({
+app.use(session({
     secret: process.env.SESSION_SECRET || "development-secret",
     resave: false,
     saveUninitialized: false,
@@ -98,25 +93,25 @@ app.use((req, res, next) => {
     AUTH ROUTES
     ============================
 */
-app.use("/auth", auth_routes_1.default);
+app.use("/auth", authRoutes);
 /*
     ============================
     TASK WEB ROUTES
     ============================
 */
-app.use("/tasks", auth_middleware_1.requireAuth, task_routes_1.default);
+app.use("/tasks", requireAuth, taskRoutes);
 /*
     ============================
     TASK REST API
     ============================
 */
-app.use("/api/v1/tasks", task_api_routes_1.default);
+app.use("/api/v1/tasks", taskApiRoutes);
 /*
     ============================
     ADMIN ROUTES
     ============================
 */
-app.use("/admin", auth_middleware_1.requireAuth, (0, role_middleware_1.requireRole)("admin"), admin_routes_1.default);
+app.use("/admin", requireAuth, requireRole("admin"), adminRoutes);
 /*
     ============================
     HOME
@@ -156,7 +151,7 @@ app.use((req, res) => {
     CENTRALIZED ERROR HANDLER
     ============================
 */
-app.use(error_middleware_1.errorHandler);
+app.use(errorHandler);
 /*
     ============================
     DATABASE + SERVER
@@ -167,12 +162,12 @@ async function startServer() {
         /*
                 Test database connection
             */
-        await database_1.sequelize.authenticate();
+        await sequelize.authenticate();
         console.log("Database connection successful");
         /*
                 Synchronize models
             */
-        await database_1.sequelize.sync({
+        await sequelize.sync({
             alter: true,
         });
         console.log("Database synchronized");

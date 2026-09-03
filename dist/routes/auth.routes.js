@@ -1,15 +1,10 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = require("express");
-const bcrypt_1 = __importDefault(require("bcrypt"));
-const user_model_1 = require("../models/user.model");
-const auth_validators_1 = require("../validators/auth.validators");
-const validation_middleware_1 = require("../middleware/validation.middleware");
-const rate_limit_middleware_1 = require("../middleware/rate-limit.middleware");
-const router = (0, express_1.Router)();
+import { Router } from "express";
+import bcrypt from "bcrypt";
+import { User } from "../../legacy-express/models/user.model";
+import { loginValidation, registerValidation } from "../../legacy-express/validators/auth.validators";
+import { handleValidationErrors } from "../../legacy-express/middleware/validation.middleware";
+import { loginLimiter } from "../../legacy-express/middleware/rate-limit.middleware";
+const router = Router();
 /*
     REGISTER PAGE
 */
@@ -19,10 +14,10 @@ router.get("/register", (req, res) => {
 /*
     REGISTER USER
 */
-router.post("/register", auth_validators_1.registerValidation, validation_middleware_1.handleValidationErrors, async (req, res) => {
+router.post("/register", registerValidation, handleValidationErrors, async (req, res) => {
     try {
         const { username, password } = req.body;
-        const existingUser = await user_model_1.User.findOne({
+        const existingUser = await User.findOne({
             where: {
                 username
             }
@@ -32,8 +27,8 @@ router.post("/register", auth_validators_1.registerValidation, validation_middle
                 message: "Username already exists"
             });
         }
-        const hashedPassword = await bcrypt_1.default.hash(password, 10);
-        await user_model_1.User.create({
+        const hashedPassword = await bcrypt.hash(password, 10);
+        await User.create({
             username,
             password: hashedPassword,
             role: "user"
@@ -56,10 +51,10 @@ router.get("/login", (req, res) => {
 /*
     LOGIN USER
 */
-router.post("/login", rate_limit_middleware_1.loginLimiter, auth_validators_1.loginValidation, validation_middleware_1.handleValidationErrors, async (req, res) => {
+router.post("/login", loginLimiter, loginValidation, handleValidationErrors, async (req, res) => {
     try {
         const { username, password } = req.body;
-        const user = await user_model_1.User.findOne({
+        const user = await User.findOne({
             where: {
                 username
             }
@@ -69,7 +64,7 @@ router.post("/login", rate_limit_middleware_1.loginLimiter, auth_validators_1.lo
                 message: "Invalid username or password"
             });
         }
-        const passwordMatch = await bcrypt_1.default.compare(password, user.password);
+        const passwordMatch = await bcrypt.compare(password, user.password);
         if (!passwordMatch) {
             return res.status(401).render("error", {
                 message: "Invalid username or password"
@@ -104,5 +99,5 @@ router.post("/logout", (req, res) => {
         res.redirect("/auth/login");
     });
 });
-exports.default = router;
+export default router;
 //# sourceMappingURL=auth.routes.js.map

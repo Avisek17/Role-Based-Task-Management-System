@@ -1,45 +1,41 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.Task = void 0;
-const sequelize_1 = require("sequelize");
-const user_model_1 = require("./user.model");
-const database_1 = require("../config/database");
-class Task extends sequelize_1.Model {
+import { DataTypes, Model } from "sequelize";
+import { User } from "./user.model";
+import { sequelize } from "../config/database";
+export class Task extends Model {
 }
-exports.Task = Task;
 Task.init({
     id: {
-        type: sequelize_1.DataTypes.INTEGER,
+        type: DataTypes.INTEGER,
         allowNull: false,
         autoIncrement: true,
         primaryKey: true
     },
     title: {
-        type: sequelize_1.DataTypes.STRING,
+        type: DataTypes.STRING,
         allowNull: false
     },
     description: {
-        type: sequelize_1.DataTypes.TEXT,
+        type: DataTypes.TEXT,
         allowNull: false
     },
     completed: {
-        type: sequelize_1.DataTypes.BOOLEAN,
+        type: DataTypes.BOOLEAN,
         defaultValue: false
     },
     userId: {
-        type: sequelize_1.DataTypes.INTEGER,
+        type: DataTypes.INTEGER,
         allowNull: false
     }
 }, {
-    sequelize: database_1.sequelize,
+    sequelize,
     tableName: "tasks",
     timestamps: true
 });
-user_model_1.User.hasMany(Task, {
+User.hasMany(Task, {
     foreignKey: "userId",
     as: "tasks"
 });
-Task.belongsTo(user_model_1.User, {
+Task.belongsTo(User, {
     foreignKey: "userId",
     as: "user"
 });

@@ -1,19 +1,14 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = require("express");
-const sequelize_1 = require("sequelize");
-const task_model_1 = require("../../../models/task.model");
-const taskAttachment_model_1 = require("../../../models/taskAttachment.model");
-const task_validators_1 = require("../../../validators/task.validators");
-const validation_middleware_1 = require("../../../middleware/validation.middleware");
-const auth_middleware_1 = require("../../../middleware/auth.middleware");
-const upload_middleware_1 = require("../../../middleware/upload.middleware");
-const AppError_1 = require("../../../errors/AppError");
-const promises_1 = __importDefault(require("fs/promises"));
-const router = (0, express_1.Router)();
+import { Router } from "express";
+import { Op } from "sequelize";
+import { Task } from "../../../../legacy-express/models/task.model";
+import { TaskAttachment } from "../../../../legacy-express/models/taskAttachment.model";
+import { createTaskValidation, updateTaskValidation, taskIdValidation, } from "../../../../legacy-express/validators/task.validators";
+import { handleValidationErrors } from "../../../../legacy-express/middleware/validation.middleware";
+import { requireAuth } from "../../../../legacy-express/middleware/auth.middleware";
+import { upload } from "../../../../legacy-express/middleware/upload.middleware";
+import { AppError } from "../../../errors/AppError";
+import fs from "fs/promises";
+const router = Router();
 /*
     ==================================================
     GET ALL TASKS
@@ -41,7 +36,7 @@ const router = (0, express_1.Router)();
         page=1&
         limit=10
 */
-router.get("/", auth_middleware_1.requireAuth, async (req, res, next) => {
+router.get("/", requireAuth, async (req, res, next) => {
     try {
         /*
                   ============================
@@ -66,7 +61,7 @@ router.get("/", auth_middleware_1.requireAuth, async (req, res, next) => {
               */
         if (req.query.completed !== undefined) {
             if (req.query.completed !== "true" && req.query.completed !== "false") {
-                throw new AppError_1.AppError("completed must be true or false", 400);
+                throw new AppError("completed must be true or false", 400);
             }
             where.completed = req.query.completed === "true";
         }
@@ -78,15 +73,15 @@ router.get("/", auth_middleware_1.requireAuth, async (req, res, next) => {
         if (typeof req.query.search === "string" &&
             req.query.search.trim() !== "") {
             const search = req.query.search.trim();
-            where[sequelize_1.Op.or] = [
+            where[Op.or] = [
                 {
                     title: {
-                        [sequelize_1.Op.like]: `%${search}%`,
+                        [Op.like]: `%${search}%`,
                     },
                 },
                 {
                     description: {
-                        [sequelize_1.Op.like]: `%${search}%`,
+                        [Op.like]: `%${search}%`,
                     },
                 },
             ];
@@ -96,7 +91,7 @@ router.get("/", auth_middleware_1.requireAuth, async (req, res, next) => {
                   DATABASE QUERY
                   ============================
               */
-        const result = await task_model_1.Task.findAndCountAll({
+        const result = await Task.findAndCountAll({
             where,
             /*
                             Return only fields
@@ -141,9 +136,9 @@ router.get("/", auth_middleware_1.requireAuth, async (req, res, next) => {
 
     GET /api/v1/tasks/:id
 */
-router.get("/:id", auth_middleware_1.requireAuth, task_validators_1.taskIdValidation, validation_middleware_1.handleValidationErrors, async (req, res, next) => {
+router.get("/:id", requireAuth, taskIdValidation, handleValidationErrors, async (req, res, next) => {
     try {
-        const task = await task_model_1.Task.findOne({
+        const task = await Task.findOne({
             where: {
                 id: Number(req.params.id),
                 userId: req.session.userId,
@@ -166,7 +161,7 @@ router.get("/:id", auth_middleware_1.requireAuth, task_validators_1.taskIdValida
                   ============================
               */
         if (!task) {
-            throw new AppError_1.AppError("Task not found", 404);
+            throw new AppError("Task not found", 404);
         }
         /*
                   ============================
@@ -189,7 +184,7 @@ router.get("/:id", auth_middleware_1.requireAuth, task_validators_1.taskIdValida
 
     POST /api/v1/tasks
 */
-router.post("/", auth_middleware_1.requireAuth, task_validators_1.createTaskValidation, validation_middleware_1.handleValidationErrors, async (req, res, next) => {
+router.post("/", requireAuth, createTaskValidation, handleValidationErrors, async (req, res, next) => {
     try {
         const { title, description } = req.body;
         /*
@@ -197,7 +192,7 @@ router.post("/", auth_middleware_1.requireAuth, task_validators_1.createTaskVali
                   CREATE TASK
                   ============================
               */
-        const task = await task_model_1.Task.create({
+        const task = await Task.create({
             title,
             description,
             completed: false,
@@ -232,14 +227,14 @@ router.post("/", auth_middleware_1.requireAuth, task_validators_1.createTaskVali
 
     PUT /api/v1/tasks/:id
 */
-router.put("/:id", auth_middleware_1.requireAuth, task_validators_1.taskIdValidation, task_validators_1.updateTaskValidation, validation_middleware_1.handleValidationErrors, async (req, res, next) => {
+router.put("/:id", requireAuth, taskIdValidation, updateTaskValidation, handleValidationErrors, async (req, res, next) => {
     try {
         /*
                   ============================
                   FIND TASK
                   ============================
               */
-        const task = await task_model_1.Task.findOne({
+        const task = await Task.findOne({
             where: {
                 id: Number(req.params.id),
                 userId: req.session.userId,
@@ -251,7 +246,7 @@ router.put("/:id", auth_middleware_1.requireAuth, task_validators_1.taskIdValida
                   ============================
               */
         if (!task) {
-            throw new AppError_1.AppError("Task not found", 404);
+            throw new AppError("Task not found", 404);
         }
         /*
                   ============================
@@ -290,14 +285,14 @@ router.put("/:id", auth_middleware_1.requireAuth, task_validators_1.taskIdValida
 
     PATCH /api/v1/tasks/:id
 */
-router.patch("/:id", auth_middleware_1.requireAuth, task_validators_1.taskIdValidation, validation_middleware_1.handleValidationErrors, async (req, res, next) => {
+router.patch("/:id", requireAuth, taskIdValidation, handleValidationErrors, async (req, res, next) => {
     try {
         /*
                   ============================
                   FIND TASK
                   ============================
               */
-        const task = await task_model_1.Task.findOne({
+        const task = await Task.findOne({
             where: {
                 id: Number(req.params.id),
                 userId: req.session.userId,
@@ -309,7 +304,7 @@ router.patch("/:id", auth_middleware_1.requireAuth, task_validators_1.taskIdVali
                   ============================
               */
         if (!task) {
-            throw new AppError_1.AppError("Task not found", 404);
+            throw new AppError("Task not found", 404);
         }
         /*
                   ============================
@@ -318,14 +313,14 @@ router.patch("/:id", auth_middleware_1.requireAuth, task_validators_1.taskIdVali
               */
         if (req.body.title !== undefined) {
             if (typeof req.body.title !== "string") {
-                throw new AppError_1.AppError("Title must be a string", 400);
+                throw new AppError("Title must be a string", 400);
             }
             const title = req.body.title.trim();
             if (title.length === 0) {
-                throw new AppError_1.AppError("Title is required", 400);
+                throw new AppError("Title is required", 400);
             }
             if (title.length > 255) {
-                throw new AppError_1.AppError("Title cannot exceed 255 characters", 400);
+                throw new AppError("Title cannot exceed 255 characters", 400);
             }
             task.title = title;
         }
@@ -336,11 +331,11 @@ router.patch("/:id", auth_middleware_1.requireAuth, task_validators_1.taskIdVali
               */
         if (req.body.description !== undefined) {
             if (typeof req.body.description !== "string") {
-                throw new AppError_1.AppError("Description must be a string", 400);
+                throw new AppError("Description must be a string", 400);
             }
             const description = req.body.description.trim();
             if (description.length === 0) {
-                throw new AppError_1.AppError("Description is required", 400);
+                throw new AppError("Description is required", 400);
             }
             task.description = description;
         }
@@ -351,7 +346,7 @@ router.patch("/:id", auth_middleware_1.requireAuth, task_validators_1.taskIdVali
               */
         if (req.body.completed !== undefined) {
             if (typeof req.body.completed !== "boolean") {
-                throw new AppError_1.AppError("Completed must be a boolean", 400);
+                throw new AppError("Completed must be a boolean", 400);
             }
             task.completed = req.body.completed;
         }
@@ -390,14 +385,14 @@ router.patch("/:id", auth_middleware_1.requireAuth, task_validators_1.taskIdVali
 
     DELETE /api/v1/tasks/:id
 */
-router.delete("/:id", auth_middleware_1.requireAuth, task_validators_1.taskIdValidation, validation_middleware_1.handleValidationErrors, async (req, res, next) => {
+router.delete("/:id", requireAuth, taskIdValidation, handleValidationErrors, async (req, res, next) => {
     try {
         /*
                   ============================
                   FIND TASK
                   ============================
               */
-        const task = await task_model_1.Task.findOne({
+        const task = await Task.findOne({
             where: {
                 id: Number(req.params.id),
                 userId: req.session.userId,
@@ -409,7 +404,7 @@ router.delete("/:id", auth_middleware_1.requireAuth, task_validators_1.taskIdVal
                   ============================
               */
         if (!task) {
-            throw new AppError_1.AppError("Task not found", 404);
+            throw new AppError("Task not found", 404);
         }
         /*
                   ============================
@@ -443,14 +438,14 @@ router.delete("/:id", auth_middleware_1.requireAuth, task_validators_1.taskIdVal
 
     file
 */
-router.post("/:id/attachments", auth_middleware_1.requireAuth, task_validators_1.taskIdValidation, validation_middleware_1.handleValidationErrors, upload_middleware_1.upload.single("file"), async (req, res, next) => {
+router.post("/:id/attachments", requireAuth, taskIdValidation, handleValidationErrors, upload.single("file"), async (req, res, next) => {
     try {
         /*
                   ============================
                   FIND TASK
                   ============================
               */
-        const task = await task_model_1.Task.findOne({
+        const task = await Task.findOne({
             where: {
                 id: Number(req.params.id),
                 userId: req.session.userId,
@@ -467,9 +462,9 @@ router.post("/:id/attachments", auth_middleware_1.requireAuth, task_validators_1
                         if it already exists.
                     */
             if (req.file) {
-                await promises_1.default.unlink(req.file.path).catch(() => { });
+                await fs.unlink(req.file.path).catch(() => { });
             }
-            throw new AppError_1.AppError("Task not found", 404);
+            throw new AppError("Task not found", 404);
         }
         /*
                   ============================
@@ -477,14 +472,14 @@ router.post("/:id/attachments", auth_middleware_1.requireAuth, task_validators_1
                   ============================
               */
         if (!req.file) {
-            throw new AppError_1.AppError("File is required", 400);
+            throw new AppError("File is required", 400);
         }
         /*
                   ============================
                   SAVE FILE METADATA
                   ============================
               */
-        const attachment = await taskAttachment_model_1.TaskAttachment.create({
+        const attachment = await TaskAttachment.create({
             taskId: task.id,
             originalName: req.file.originalname,
             fileName: req.file.filename,
@@ -518,10 +513,10 @@ router.post("/:id/attachments", auth_middleware_1.requireAuth, task_validators_1
                   remove the orphan file.
               */
         if (req.file) {
-            await promises_1.default.unlink(req.file.path).catch(() => { });
+            await fs.unlink(req.file.path).catch(() => { });
         }
         next(error);
     }
 });
-exports.default = router;
+export default router;
 //# sourceMappingURL=task.api.routes.js.map

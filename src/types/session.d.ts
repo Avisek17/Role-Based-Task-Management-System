@@ -1,9 +1,9 @@
-import "express-session";
+import 'express-session';
 
-declare module "express-session" {
-    interface SessionData {
-        userId?: number;
-        username?: string;
-        role?: "user" | "admin";
-    }
+declare module 'express-session' {
+  interface SessionData {
+    userId: number;
+    username: string;
+    role: 'user' | 'admin';
+  }
 }

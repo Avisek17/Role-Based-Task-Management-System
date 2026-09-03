@@ -1,19 +1,13 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.errorHandler = void 0;
-const multer_1 = __importDefault(require("multer"));
-const AppError_1 = require("../errors/AppError");
-const errorHandler = (err, req, res, next) => {
+import multer from "multer";
+import { AppError } from "../errors/AppError";
+export const errorHandler = (err, req, res, next) => {
     console.error(err);
     /*
           ==================================
           APP ERROR
           ==================================
       */
-    if (err instanceof AppError_1.AppError) {
+    if (err instanceof AppError) {
         return res.status(err.statusCode).json({
             success: false,
             message: err.message,
@@ -24,7 +18,7 @@ const errorHandler = (err, req, res, next) => {
           MULTER ERROR
           ==================================
       */
-    if (err instanceof multer_1.default.MulterError) {
+    if (err instanceof multer.MulterError) {
         /*
                 File exceeds configured
                 upload size limit.
@@ -53,5 +47,4 @@ const errorHandler = (err, req, res, next) => {
         message: "Internal server error",
     });
 };
-exports.errorHandler = errorHandler;
 //# sourceMappingURL=error.middleware.js.map

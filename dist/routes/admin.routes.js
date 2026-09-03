@@ -1,15 +1,13 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = require("express");
-const user_model_1 = require("../models/user.model");
-const task_model_1 = require("../models/task.model");
-const router = (0, express_1.Router)();
+import { Router } from "express";
+import { User } from "../../legacy-express/models/user.model";
+import { Task } from "../../legacy-express/models/task.model";
+const router = Router();
 /*
     ADMIN DASHBOARD
 */
 router.get("/", async (req, res) => {
     try {
-        const users = await user_model_1.User.findAll({
+        const users = await User.findAll({
             attributes: [
                 "id",
                 "username",
@@ -17,7 +15,7 @@ router.get("/", async (req, res) => {
                 "createdAt"
             ]
         });
-        const tasks = await task_model_1.Task.findAll();
+        const tasks = await Task.findAll();
         res.render("admin/dashboard", {
             users,
             tasks
@@ -30,5 +28,5 @@ router.get("/", async (req, res) => {
         });
     }
 });
-exports.default = router;
+export default router;
 //# sourceMappingURL=admin.routes.js.map

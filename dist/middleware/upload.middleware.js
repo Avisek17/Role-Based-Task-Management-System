@@ -1,24 +1,18 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.upload = void 0;
-const multer_1 = __importDefault(require("multer"));
-const path_1 = __importDefault(require("path"));
-const fs_1 = __importDefault(require("fs"));
-const uploadDirectory = path_1.default.join(process.cwd(), "uploads");
-if (!fs_1.default.existsSync(uploadDirectory)) {
-    fs_1.default.mkdirSync(uploadDirectory, {
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+const uploadDirectory = path.join(process.cwd(), "uploads");
+if (!fs.existsSync(uploadDirectory)) {
+    fs.mkdirSync(uploadDirectory, {
         recursive: true,
     });
 }
-const storage = multer_1.default.diskStorage({
+const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, uploadDirectory);
     },
     filename: (req, file, cb) => {
-        const extension = path_1.default.extname(file.originalname);
+        const extension = path.extname(file.originalname);
         const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1E9)}${extension}`;
         cb(null, uniqueName);
     },
@@ -37,7 +31,7 @@ const fileFilter = (req, file, cb) => {
         cb(new Error("Only JPG, PNG, WEBP and PDF files are allowed"));
     }
 };
-exports.upload = (0, multer_1.default)({
+export const upload = multer({
     storage,
     fileFilter,
     limits: {

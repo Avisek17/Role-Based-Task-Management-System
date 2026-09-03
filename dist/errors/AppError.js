@@ -1,7 +1,4 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.AppError = void 0;
-class AppError extends Error {
+export class AppError extends Error {
     statusCode;
     constructor(message, statusCode) {
         super(message);
@@ -9,5 +6,4 @@ class AppError extends Error {
         this.name = "AppError";
     }
 }
-exports.AppError = AppError;
 //# sourceMappingURL=AppError.js.map

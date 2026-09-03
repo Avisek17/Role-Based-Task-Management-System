@@ -1,17 +1,15 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = require("express");
-const task_model_1 = require("../models/task.model");
-const task_validators_1 = require("../validators/task.validators");
-const validation_middleware_1 = require("../middleware/validation.middleware");
-const auth_middleware_1 = require("../middleware/auth.middleware");
-const router = (0, express_1.Router)();
+import { Router } from "express";
+import { Task } from "../../legacy-express/models/task.model";
+import { createTaskValidation, updateTaskValidation, taskIdValidation } from "../../legacy-express/validators/task.validators";
+import { handleValidationErrors } from "../../legacy-express/middleware/validation.middleware";
+import { requireAuth } from "../../legacy-express/middleware/auth.middleware";
+const router = Router();
 /*
     GET ALL USER TASKS
 */
-router.get("/", auth_middleware_1.requireAuth, async (req, res) => {
+router.get("/", requireAuth, async (req, res) => {
     try {
-        const tasks = await task_model_1.Task.findAll({
+        const tasks = await Task.findAll({
             where: {
                 userId: req.session.userId
             },
@@ -33,16 +31,16 @@ router.get("/", auth_middleware_1.requireAuth, async (req, res) => {
 /*
     CREATE TASK PAGE
 */
-router.get("/new", auth_middleware_1.requireAuth, (req, res) => {
+router.get("/new", requireAuth, (req, res) => {
     res.render("tasks/create");
 });
 /*
     CREATE TASK
 */
-router.post("/", auth_middleware_1.requireAuth, task_validators_1.createTaskValidation, validation_middleware_1.handleValidationErrors, async (req, res) => {
+router.post("/", requireAuth, createTaskValidation, handleValidationErrors, async (req, res) => {
     try {
         const { title, description } = req.body;
-        await task_model_1.Task.create({
+        await Task.create({
             title,
             description,
             completed: false,
@@ -60,9 +58,9 @@ router.post("/", auth_middleware_1.requireAuth, task_validators_1.createTaskVali
 /*
     GET EDIT PAGE
 */
-router.get("/:id/edit", auth_middleware_1.requireAuth, task_validators_1.taskIdValidation, validation_middleware_1.handleValidationErrors, async (req, res) => {
+router.get("/:id/edit", requireAuth, taskIdValidation, handleValidationErrors, async (req, res) => {
     try {
-        const task = await task_model_1.Task.findOne({
+        const task = await Task.findOne({
             where: {
                 id: Number(req.params.id),
                 userId: req.session.userId
@@ -87,9 +85,9 @@ router.get("/:id/edit", auth_middleware_1.requireAuth, task_validators_1.taskIdV
 /*
     UPDATE TASK
 */
-router.post("/:id", auth_middleware_1.requireAuth, task_validators_1.taskIdValidation, task_validators_1.updateTaskValidation, validation_middleware_1.handleValidationErrors, async (req, res) => {
+router.post("/:id", requireAuth, taskIdValidation, updateTaskValidation, handleValidationErrors, async (req, res) => {
     try {
-        const task = await task_model_1.Task.findOne({
+        const task = await Task.findOne({
             where: {
                 id: Number(req.params.id),
                 userId: req.session.userId
@@ -117,9 +115,9 @@ router.post("/:id", auth_middleware_1.requireAuth, task_validators_1.taskIdValid
 /*
     COMPLETE / UNCOMPLETE TASK
 */
-router.post("/:id/complete", auth_middleware_1.requireAuth, task_validators_1.taskIdValidation, validation_middleware_1.handleValidationErrors, async (req, res) => {
+router.post("/:id/complete", requireAuth, taskIdValidation, handleValidationErrors, async (req, res) => {
     try {
-        const task = await task_model_1.Task.findOne({
+        const task = await Task.findOne({
             where: {
                 id: Number(req.params.id),
                 userId: req.session.userId
@@ -145,9 +143,9 @@ router.post("/:id/complete", auth_middleware_1.requireAuth, task_validators_1.ta
 /*
     DELETE TASK
 */
-router.post("/:id/delete", auth_middleware_1.requireAuth, task_validators_1.taskIdValidation, validation_middleware_1.handleValidationErrors, async (req, res) => {
+router.post("/:id/delete", requireAuth, taskIdValidation, handleValidationErrors, async (req, res) => {
     try {
-        const task = await task_model_1.Task.findOne({
+        const task = await Task.findOne({
             where: {
                 id: Number(req.params.id),
                 userId: req.session.userId
@@ -168,5 +166,5 @@ router.post("/:id/delete", auth_middleware_1.requireAuth, task_validators_1.task
         });
     }
 });
-exports.default = router;
+export default router;
 //# sourceMappingURL=task.routes.js.map

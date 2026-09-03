@@ -1,7 +1,4 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.requireRole = requireRole;
-function requireRole(role) {
+export function requireRole(role) {
     return (req, res, next) => {
         if (req.session.role !== role) {
             res.status(403).render("error", {
