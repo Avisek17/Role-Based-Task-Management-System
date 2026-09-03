@@ -6,11 +6,14 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 
 import { TasksService } from './tasks.service.js';
+
 import { CreateTaskDto } from './dto/create-task.dto.js';
 import { UpdateTaskDto } from './dto/updata-task.dto.js';
+import { TaskQueryDto } from './dto/task-query.dto.js';
 
 @Controller('api/v1/tasks')
 export class TasksController {
@@ -18,21 +21,26 @@ export class TasksController {
     private readonly tasksService: TasksService,
   ) {}
 
+  // GET /api/v1/tasks
+  // Search + filter + sort + pagination
   @Get()
-  findAll() {
-    return this.tasksService.findAll();
+  findAll(@Query() query: TaskQueryDto) {
+    return this.tasksService.findAll(query);
   }
 
+  // GET /api/v1/tasks/:id
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.tasksService.findOne(Number(id));
   }
 
+  // POST /api/v1/tasks
   @Post()
   create(@Body() createTaskDto: CreateTaskDto) {
     return this.tasksService.create(createTaskDto);
   }
 
+  // PATCH /api/v1/tasks/:id
   @Patch(':id')
   update(
     @Param('id') id: string,
@@ -44,6 +52,7 @@ export class TasksController {
     );
   }
 
+  // DELETE /api/v1/tasks/:id
   @Delete(':id')
   delete(@Param('id') id: string) {
     return this.tasksService.delete(Number(id));

@@ -10,9 +10,25 @@ import express from 'express';
 import session from 'express-session';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import helmet from 'helmet';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  /*
+   * ============================
+   * SECURITY
+   * ============================
+   */
+
+  // Helmet security headers
+  app.use(helmet());
+
+  // CORS
+  app.enableCors({
+    origin: 'http://localhost:3000',
+    credentials: true,
+  });
 
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
@@ -25,9 +41,15 @@ async function bootstrap() {
    * ============================
    */
 
-  expressApp.set('views', path.join(__dirname, '..', 'views'));
+  expressApp.set(
+    'views',
+    path.join(__dirname, '..', 'views'),
+  );
 
-  expressApp.set('view engine', 'ejs');
+  expressApp.set(
+    'view engine',
+    'ejs',
+  );
 
   /*
    * ============================
@@ -36,7 +58,9 @@ async function bootstrap() {
    */
 
   expressApp.use(
-    express.static(path.join(__dirname, '..', 'public')),
+    express.static(
+      path.join(__dirname, '..', 'public'),
+    ),
   );
 
   /*
@@ -57,7 +81,6 @@ async function bootstrap() {
 
       cookie: {
         maxAge: 1000 * 60 * 60,
-
         httpOnly: true,
       },
     }),
@@ -88,12 +111,17 @@ async function bootstrap() {
     .setVersion('1.0')
     .build();
 
-  const document = SwaggerModule.createDocument(
-    app,
-    config,
-  );
+  const document =
+    SwaggerModule.createDocument(
+      app,
+      config,
+    );
 
-  SwaggerModule.setup('api', app, document);
+  SwaggerModule.setup(
+    'api',
+    app,
+    document,
+  );
 
   await app.listen(3000);
 

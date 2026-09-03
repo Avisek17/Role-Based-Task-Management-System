@@ -10,35 +10,43 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-import { Body, Controller, Delete, Get, Param, Patch, Post, } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, } from '@nestjs/common';
 import { TasksService } from './tasks.service.js';
 import { CreateTaskDto } from './dto/create-task.dto.js';
 import { UpdateTaskDto } from './dto/updata-task.dto.js';
+import { TaskQueryDto } from './dto/task-query.dto.js';
 let TasksController = class TasksController {
     tasksService;
     constructor(tasksService) {
         this.tasksService = tasksService;
     }
-    findAll() {
-        return this.tasksService.findAll();
+    // GET /api/v1/tasks
+    // Search + filter + sort + pagination
+    findAll(query) {
+        return this.tasksService.findAll(query);
     }
+    // GET /api/v1/tasks/:id
     findOne(id) {
         return this.tasksService.findOne(Number(id));
     }
+    // POST /api/v1/tasks
     create(createTaskDto) {
         return this.tasksService.create(createTaskDto);
     }
+    // PATCH /api/v1/tasks/:id
     update(id, updateTaskDto) {
         return this.tasksService.update(Number(id), updateTaskDto);
     }
+    // DELETE /api/v1/tasks/:id
     delete(id) {
         return this.tasksService.delete(Number(id));
     }
 };
 __decorate([
     Get(),
+    __param(0, Query()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [TaskQueryDto]),
     __metadata("design:returntype", void 0)
 ], TasksController.prototype, "findAll", null);
 __decorate([

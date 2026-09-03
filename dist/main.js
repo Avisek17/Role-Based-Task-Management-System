@@ -7,8 +7,21 @@ import express from 'express';
 import session from 'express-session';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import helmet from 'helmet';
 async function bootstrap() {
     const app = await NestFactory.create(AppModule);
+    /*
+     * ============================
+     * SECURITY
+     * ============================
+     */
+    // Helmet security headers
+    app.use(helmet());
+    // CORS
+    app.enableCors({
+        origin: 'http://localhost:3000',
+        credentials: true,
+    });
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
     const expressApp = app.getHttpAdapter().getInstance();

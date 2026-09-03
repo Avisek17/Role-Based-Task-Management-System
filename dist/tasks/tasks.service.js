@@ -19,13 +19,61 @@ let TasksService = class TasksService {
     constructor(taskRepository) {
         this.taskRepository = taskRepository;
     }
-    async findAll() {
-        return this.taskRepository.find({
-            order: {
-                createdAt: 'DESC',
+    // =====================================================
+    // GET ALL TASKS
+    // REST API
+    // Search + Filter + Sort + Pagination
+    // =====================================================
+    async findAll(query = {}) {
+        const { search, completed, sortBy = 'createdAt', order = 'DESC', page = 1, limit = 10, } = query;
+        const currentPage = Math.max(Number(page) || 1, 1);
+        const currentLimit = Math.min(Math.max(Number(limit) || 10, 1), 100);
+        const queryBuilder = this.taskRepository.createQueryBuilder('task');
+        // Search
+        if (search) {
+            queryBuilder.andWhere('(task.title LIKE :search OR task.description LIKE :search)', {
+                search: `%${search}%`,
+            });
+        }
+        // Filter
+        if (completed !== undefined) {
+            queryBuilder.andWhere('task.completed = :completed', {
+                completed: completed === 'true',
+            });
+        }
+        // Sort
+        const allowedSortFields = [
+            'id',
+            'title',
+            'createdAt',
+            'updatedAt',
+        ];
+        const safeSortBy = allowedSortFields.includes(sortBy)
+            ? sortBy
+            : 'createdAt';
+        const safeOrder = order?.toUpperCase() === 'ASC'
+            ? 'ASC'
+            : 'DESC';
+        queryBuilder.orderBy(`task.${safeSortBy}`, safeOrder);
+        // Pagination
+        const skip = (currentPage - 1) * currentLimit;
+        queryBuilder.skip(skip);
+        queryBuilder.take(currentLimit);
+        const [tasks, total] = await queryBuilder.getManyAndCount();
+        return {
+            data: tasks,
+            pagination: {
+                total,
+                page: currentPage,
+                limit: currentLimit,
+                totalPages: Math.ceil(total / currentLimit),
             },
-        });
+        };
     }
+    // =====================================================
+    // GET ALL TASKS FOR LOGGED-IN USER
+    // EJS
+    // =====================================================
     async findAllByUser(userId) {
         return this.taskRepository.find({
             where: {
@@ -36,6 +84,10 @@ let TasksService = class TasksService {
             },
         });
     }
+    // =====================================================
+    // GET TASK BY ID
+    // REST API
+    // =====================================================
     async findOne(id) {
         const task = await this.taskRepository.findOne({
             where: {
@@ -47,6 +99,10 @@ let TasksService = class TasksService {
         }
         return task;
     }
+    // =====================================================
+    // GET TASK BY ID FOR LOGGED-IN USER
+    // EJS
+    // =====================================================
     async findOneByUser(id, userId) {
         const task = await this.taskRepository.findOne({
             where: {
@@ -59,13 +115,22 @@ let TasksService = class TasksService {
         }
         return task;
     }
+    // =====================================================
+    // CREATE TASK
+    // REST API
+    // =====================================================
     async create(createTaskDto) {
         const task = this.taskRepository.create({
             title: createTaskDto.title,
             description: createTaskDto.description,
+            completed: false,
         });
         return this.taskRepository.save(task);
     }
+    // =====================================================
+    // CREATE TASK FOR LOGGED-IN USER
+    // EJS
+    // =====================================================
     async createForUser(createTaskDto, userId) {
         const task = this.taskRepository.create({
             title: createTaskDto.title,
@@ -75,6 +140,10 @@ let TasksService = class TasksService {
         });
         return this.taskRepository.save(task);
     }
+    // =====================================================
+    // UPDATE TASK
+    // REST API
+    // =====================================================
     async update(id, updateTaskDto) {
         const task = await this.findOne(id);
         if (updateTaskDto.title !== undefined) {
@@ -85,6 +154,10 @@ let TasksService = class TasksService {
         }
         return this.taskRepository.save(task);
     }
+    // =====================================================
+    // UPDATE TASK FOR LOGGED-IN USER
+    // EJS
+    // =====================================================
     async updateForUser(id, updateTaskDto, userId) {
         const task = await this.findOneByUser(id, userId);
         if (updateTaskDto.title !== undefined) {
@@ -95,11 +168,19 @@ let TasksService = class TasksService {
         }
         return this.taskRepository.save(task);
     }
+    // =====================================================
+    // TOGGLE COMPLETED
+    // EJS
+    // =====================================================
     async toggleComplete(id, userId) {
         const task = await this.findOneByUser(id, userId);
         task.completed = !task.completed;
         return this.taskRepository.save(task);
     }
+    // =====================================================
+    // DELETE TASK
+    // REST API
+    // =====================================================
     async delete(id) {
         const task = await this.findOne(id);
         await this.taskRepository.remove(task);
@@ -107,6 +188,10 @@ let TasksService = class TasksService {
             message: 'Task deleted successfully',
         };
     }
+    // =====================================================
+    // DELETE TASK FOR LOGGED-IN USER
+    // EJS
+    // =====================================================
     async deleteForUser(id, userId) {
         const task = await this.findOneByUser(id, userId);
         await this.taskRepository.remove(task);
@@ -114,6 +199,9 @@ let TasksService = class TasksService {
             message: 'Task deleted successfully',
         };
     }
+    // =====================================================
+    // SAVE TASK
+    // =====================================================
     async save(task) {
         return this.taskRepository.save(task);
     }

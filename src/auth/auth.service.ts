@@ -1,12 +1,13 @@
 import {
   Injectable,
-  UnauthorizedException,
 } from '@nestjs/common';
 
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import bcrypt from 'bcrypt';
+
+import { JwtService } from '@nestjs/jwt';
 
 import { User } from './user.entity.js';
 
@@ -15,6 +16,8 @@ export class AuthService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+
+    private readonly jwtService: JwtService,
   ) {}
 
   async validateUser(
@@ -55,7 +58,9 @@ export class AuthService {
       });
 
     if (existingUser) {
-      throw new Error('Username already exists');
+      throw new Error(
+        'Username already exists',
+      );
     }
 
     const hashedPassword =
@@ -68,5 +73,18 @@ export class AuthService {
     });
 
     return this.userRepository.save(user);
+  }
+
+  async generateToken(user: User) {
+    const payload = {
+      sub: user.id,
+      username: user.username,
+      role: user.role,
+    };
+
+    return {
+      access_token:
+        await this.jwtService.signAsync(payload),
+    };
   }
 }
