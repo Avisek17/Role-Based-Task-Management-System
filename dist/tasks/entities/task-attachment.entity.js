@@ -7,53 +7,56 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
-import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn, } from 'typeorm';
-import { OneToMany } from 'typeorm';
-import { TaskAttachment } from './task-attachment.entity.js';
-let Task = class Task {
+import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, } from 'typeorm';
+let TaskAttachment = class TaskAttachment {
     id;
-    title;
-    description;
-    completed;
-    userId;
+    fileName;
+    originalName;
+    mimeType;
+    size;
+    taskId;
     createdAt;
-    updatedAt;
-    attachments;
+    task;
 };
 __decorate([
     PrimaryGeneratedColumn(),
     __metadata("design:type", Number)
-], Task.prototype, "id", void 0);
+], TaskAttachment.prototype, "id", void 0);
 __decorate([
     Column(),
     __metadata("design:type", String)
-], Task.prototype, "title", void 0);
+], TaskAttachment.prototype, "fileName", void 0);
 __decorate([
-    Column({ type: 'text' }),
+    Column(),
     __metadata("design:type", String)
-], Task.prototype, "description", void 0);
+], TaskAttachment.prototype, "originalName", void 0);
 __decorate([
-    Column({ default: false }),
-    __metadata("design:type", Boolean)
-], Task.prototype, "completed", void 0);
+    Column(),
+    __metadata("design:type", String)
+], TaskAttachment.prototype, "mimeType", void 0);
 __decorate([
     Column(),
     __metadata("design:type", Number)
-], Task.prototype, "userId", void 0);
+], TaskAttachment.prototype, "size", void 0);
+__decorate([
+    Column(),
+    __metadata("design:type", Number)
+], TaskAttachment.prototype, "taskId", void 0);
 __decorate([
     CreateDateColumn(),
     __metadata("design:type", Date)
-], Task.prototype, "createdAt", void 0);
+], TaskAttachment.prototype, "createdAt", void 0);
 __decorate([
-    UpdateDateColumn(),
-    __metadata("design:type", Date)
-], Task.prototype, "updatedAt", void 0);
-__decorate([
-    OneToMany(() => TaskAttachment, (attachment) => attachment.task),
-    __metadata("design:type", Array)
-], Task.prototype, "attachments", void 0);
-Task = __decorate([
-    Entity('tasks')
-], Task);
-export { Task };
-//# sourceMappingURL=task.entity.js.map
+    ManyToOne('Task', 'attachments', {
+        onDelete: 'CASCADE',
+    }),
+    JoinColumn({
+        name: 'taskId',
+    }),
+    __metadata("design:type", Function)
+], TaskAttachment.prototype, "task", void 0);
+TaskAttachment = __decorate([
+    Entity('task_attachments')
+], TaskAttachment);
+export { TaskAttachment };
+//# sourceMappingURL=task-attachment.entity.js.map

@@ -1,69 +1,116 @@
 <!DOCTYPE html>
+
 <html lang="en">
 
 <head>
 
-    <meta charset="UTF-8">
 
-    <title>Edit Task</title>
+<meta charset="UTF-8">
 
-    <link
-        rel="stylesheet"
-        href="/css/style.css"
-    >
+<title>Edit Task</title>
+
+<link
+    rel="stylesheet"
+    href="/css/style.css"
+>
+
 
 </head>
 
 <body>
 
-    <div class="container">
 
-        <h1>Edit Task</h1>
+<div class="container">
 
-        <form
-            action="/tasks/<%= task.id %>"
-            method="POST"
-        >
+    <h1>Edit Task</h1>
 
-            <div class="form-group">
+    <form
+        action="/tasks/<%= task.id %>"
+        method="POST"
+        enctype="multipart/form-data"
+    >
 
-                <label>
-                    Title
-                </label>
+        <!-- ========================= -->
+        <!-- TITLE -->
+        <!-- ========================= -->
 
-                <input
-                    type="text"
-                    name="title"
-                    value="<%= task.title %>"
-                    required
-                >
+        <div class="form-group">
 
-            </div>
+            <label for="title">
+                Title
+            </label>
 
-            <div class="form-group">
+            <input
+                type="text"
+                id="title"
+                name="title"
+                value="<%= task.title %>"
+                required
+            >
 
-                <label>
-                    Description
-                </label>
+        </div>
 
-                <textarea
-                    name="description"
-                    required
-                ><%= task.description %></textarea>
 
-            </div>
+        <!-- ========================= -->
+        <!-- DESCRIPTION -->
+        <!-- ========================= -->
 
-            <button type="submit">
-                Update Task
-            </button>
+        <div class="form-group">
 
-            <a href="/tasks">
-                Cancel
-            </a>
+            <label for="description">
+                Description
+            </label>
 
-        </form>
+            <textarea
+                id="description"
+                name="description"
+                required
+            ><%= task.description %></textarea>
 
-    </div>
+        </div>
+
+
+        <!-- ========================= -->
+        <!-- FILE UPLOAD -->
+        <!-- ========================= -->
+
+        <div class="form-group">
+
+            <label for="attachment">
+                Add Attachment
+            </label>
+
+            <input
+                type="file"
+                id="attachment"
+                name="attachment"
+                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+            >
+
+            <small>
+                Allowed: PDF, DOC, DOCX, JPG, JPEG, PNG.
+                Maximum size: 5 MB.
+            </small>
+
+        </div>
+
+
+        <!-- ========================= -->
+        <!-- ACTIONS -->
+        <!-- ========================= -->
+
+        <button type="submit">
+            Update Task
+        </button>
+
+        <a href="/tasks">
+            Cancel
+        </a>
+
+    </form>
+
+</div>
+
 
 </body>
 

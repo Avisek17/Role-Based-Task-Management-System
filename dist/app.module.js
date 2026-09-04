@@ -11,6 +11,7 @@ import { TasksModule } from './tasks/tasks.module.js';
 import { PagesModule } from './pages/pages.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { AdminModule } from './admin/admin.module.js';
+import { RedisModule } from './redis/redis.module.js';
 let AppModule = class AppModule {
 };
 AppModule = __decorate([
@@ -36,7 +37,8 @@ AppModule = __decorate([
             TasksModule,
             PagesModule,
             AuthModule,
-            AdminModule, // <-- ADD THIS
+            AdminModule,
+            RedisModule,
         ],
     })
 ], AppModule);

@@ -7,6 +7,7 @@ import { PagesModule } from './pages/pages.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { AdminModule } from './admin/admin.module.js';
 
+import { RedisModule } from './redis/redis.module.js';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -34,7 +35,8 @@ import { AdminModule } from './admin/admin.module.js';
     TasksModule,
     PagesModule,
     AuthModule,
-    AdminModule, // <-- ADD THIS
+    AdminModule,
+    RedisModule,
   ],
 })
 export class AppModule {}

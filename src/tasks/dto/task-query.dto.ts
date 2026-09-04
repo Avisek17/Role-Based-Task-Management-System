@@ -1,5 +1,4 @@
 import {
-  IsBooleanString,
   IsIn,
   IsInt,
   IsOptional,
@@ -8,15 +7,21 @@ import {
   Min,
 } from 'class-validator';
 
-import { Type } from 'class-transformer';
+import {
+  Type,
+} from 'class-transformer';
 
 export class TaskQueryDto {
+
   @IsOptional()
   @IsString()
   search?: string;
 
   @IsOptional()
-  @IsBooleanString()
+  @IsIn([
+    'true',
+    'false',
+  ])
   completed?: string;
 
   @IsOptional()
@@ -26,7 +31,11 @@ export class TaskQueryDto {
     'createdAt',
     'updatedAt',
   ])
-  sortBy?: string;
+  sortBy?:
+    | 'id'
+    | 'title'
+    | 'createdAt'
+    | 'updatedAt';
 
   @IsOptional()
   @IsIn([
@@ -35,7 +44,11 @@ export class TaskQueryDto {
     'asc',
     'desc',
   ])
-  order?: string;
+  order?:
+    | 'ASC'
+    | 'DESC'
+    | 'asc'
+    | 'desc';
 
   @IsOptional()
   @Type(() => Number)

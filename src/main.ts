@@ -11,6 +11,7 @@ import session from 'express-session';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import helmet from 'helmet';
+import {HttpExceptionFilter} from './common/filters/http-exception.filter.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -92,12 +93,20 @@ async function bootstrap() {
    * ============================
    */
 
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      transform: true,
-    }),
-  );
+app.useGlobalPipes(
+  new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true,
+    transformOptions: {
+      enableImplicitConversion: true,
+    },
+  }),
+);
+
+app.useGlobalFilters(
+  new HttpExceptionFilter(),
+);
 
   /*
    * ============================

@@ -14,34 +14,43 @@ import { Injectable, NotFoundException, } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Task } from './entities/task.entity.js';
+import { TaskAttachment } from './entities/task-attachment.entity.js';
+import { RedisService } from '../redis/redis.service.js';
+import path from 'path';
+import * as fs from 'fs/promises';
 let TasksService = class TasksService {
     taskRepository;
-    constructor(taskRepository) {
+    attachmentRepository;
+    redisService;
+    constructor(taskRepository, attachmentRepository, redisService) {
         this.taskRepository = taskRepository;
+        this.attachmentRepository = attachmentRepository;
+        this.redisService = redisService;
+    }
+    // =====================================================
+    // REDIS CACHE HELPERS
+    // =====================================================
+    /**
+     * Delete all cached task list results.
+     *
+     * This is called whenever a task is created,
+     * updated, completed, or deleted.
+     */
+    async clearTaskListCache() {
+        await this.redisService.deleteByPattern('tasks:*');
     }
     // =====================================================
     // GET ALL TASKS
     // REST API
-    // Search + Filter + Sort + Pagination
+    // Search + Filter + Sort + Pagination + Redis Cache
     // =====================================================
     async findAll(query = {}) {
         const { search, completed, sortBy = 'createdAt', order = 'DESC', page = 1, limit = 10, } = query;
         const currentPage = Math.max(Number(page) || 1, 1);
         const currentLimit = Math.min(Math.max(Number(limit) || 10, 1), 100);
-        const queryBuilder = this.taskRepository.createQueryBuilder('task');
-        // Search
-        if (search) {
-            queryBuilder.andWhere('(task.title LIKE :search OR task.description LIKE :search)', {
-                search: `%${search}%`,
-            });
-        }
-        // Filter
-        if (completed !== undefined) {
-            queryBuilder.andWhere('task.completed = :completed', {
-                completed: completed === 'true',
-            });
-        }
-        // Sort
+        // =================================================
+        // SAFE SORT VALUES
+        // =================================================
         const allowedSortFields = [
             'id',
             'title',
@@ -54,13 +63,65 @@ let TasksService = class TasksService {
         const safeOrder = order?.toUpperCase() === 'ASC'
             ? 'ASC'
             : 'DESC';
+        // =================================================
+        // CREATE REDIS CACHE KEY
+        // =================================================
+        const cacheKey = [
+            'tasks',
+            `search=${search ?? ''}`,
+            `completed=${completed ?? ''}`,
+            `sortBy=${safeSortBy}`,
+            `order=${safeOrder}`,
+            `page=${currentPage}`,
+            `limit=${currentLimit}`,
+        ].join(':');
+        // =================================================
+        // CHECK REDIS CACHE
+        // =================================================
+        const cachedTasks = await this.redisService.get(cacheKey);
+        if (cachedTasks) {
+            console.log(`Redis cache HIT: ${cacheKey}`);
+            return JSON.parse(cachedTasks);
+        }
+        console.log(`Redis cache MISS: ${cacheKey}`);
+        // =================================================
+        // CREATE DATABASE QUERY
+        // =================================================
+        const queryBuilder = this.taskRepository.createQueryBuilder('task');
+        // =================================================
+        // SEARCH
+        // =================================================
+        if (search) {
+            queryBuilder.andWhere('(task.title LIKE :search OR task.description LIKE :search)', {
+                search: `%${search}%`,
+            });
+        }
+        // =================================================
+        // FILTER
+        // =================================================
+        if (completed !== undefined) {
+            queryBuilder.andWhere('task.completed = :completed', {
+                completed: completed === 'true',
+            });
+        }
+        // =================================================
+        // SORT
+        // =================================================
         queryBuilder.orderBy(`task.${safeSortBy}`, safeOrder);
-        // Pagination
+        // =================================================
+        // PAGINATION
+        // =================================================
         const skip = (currentPage - 1) * currentLimit;
         queryBuilder.skip(skip);
         queryBuilder.take(currentLimit);
+        // =================================================
+        // EXECUTE DATABASE QUERY
+        // =================================================
         const [tasks, total] = await queryBuilder.getManyAndCount();
-        return {
+        // =================================================
+        // CREATE RESPONSE
+        // =================================================
+        const result = {
             data: tasks,
             pagination: {
                 total,
@@ -69,6 +130,12 @@ let TasksService = class TasksService {
                 totalPages: Math.ceil(total / currentLimit),
             },
         };
+        // =================================================
+        // STORE RESULT IN REDIS
+        // TTL = 60 SECONDS
+        // =================================================
+        await this.redisService.set(cacheKey, JSON.stringify(result), 60);
+        return result;
     }
     // =====================================================
     // GET ALL TASKS FOR LOGGED-IN USER
@@ -79,6 +146,9 @@ let TasksService = class TasksService {
             where: {
                 userId,
             },
+            relations: {
+                attachments: true,
+            },
             order: {
                 createdAt: 'DESC',
             },
@@ -86,9 +156,22 @@ let TasksService = class TasksService {
     }
     // =====================================================
     // GET TASK BY ID
-    // REST API
+    // REST API + Redis Cache
     // =====================================================
     async findOne(id) {
+        const cacheKey = `task:${id}`;
+        // =================================================
+        // CHECK REDIS
+        // =================================================
+        const cachedTask = await this.redisService.get(cacheKey);
+        if (cachedTask) {
+            console.log(`Redis cache HIT: ${cacheKey}`);
+            return JSON.parse(cachedTask);
+        }
+        console.log(`Redis cache MISS: ${cacheKey}`);
+        // =================================================
+        // GET FROM DATABASE
+        // =================================================
         const task = await this.taskRepository.findOne({
             where: {
                 id,
@@ -97,6 +180,11 @@ let TasksService = class TasksService {
         if (!task) {
             throw new NotFoundException(`Task with ID ${id} not found`);
         }
+        // =================================================
+        // STORE IN REDIS
+        // TTL = 60 SECONDS
+        // =================================================
+        await this.redisService.set(cacheKey, JSON.stringify(task), 60);
         return task;
     }
     // =====================================================
@@ -125,20 +213,39 @@ let TasksService = class TasksService {
             description: createTaskDto.description,
             completed: false,
         });
-        return this.taskRepository.save(task);
+        const savedTask = await this.taskRepository.save(task);
+        // =================================================
+        // CLEAR TASK LIST CACHE
+        // =================================================
+        await this.clearTaskListCache();
+        return savedTask;
     }
     // =====================================================
     // CREATE TASK FOR LOGGED-IN USER
     // EJS
     // =====================================================
-    async createForUser(createTaskDto, userId) {
+    async createForUser(createTaskDto, userId, file) {
         const task = this.taskRepository.create({
             title: createTaskDto.title,
             description: createTaskDto.description,
             userId,
             completed: false,
         });
-        return this.taskRepository.save(task);
+        const savedTask = await this.taskRepository.save(task);
+        // =================================================
+        // SAVE ATTACHMENT
+        // =================================================
+        if (file) {
+            const attachment = this.attachmentRepository.create({
+                taskId: savedTask.id,
+                originalName: file.originalname,
+                fileName: file.filename,
+                mimeType: file.mimetype,
+                size: file.size,
+            });
+            await this.attachmentRepository.save(attachment);
+        }
+        return savedTask;
     }
     // =====================================================
     // UPDATE TASK
@@ -146,27 +253,108 @@ let TasksService = class TasksService {
     // =====================================================
     async update(id, updateTaskDto) {
         const task = await this.findOne(id);
+        // =================================================
+        // UPDATE TITLE
+        // =================================================
         if (updateTaskDto.title !== undefined) {
-            task.title = updateTaskDto.title;
+            task.title =
+                updateTaskDto.title;
         }
+        // =================================================
+        // UPDATE DESCRIPTION
+        // =================================================
         if (updateTaskDto.description !== undefined) {
-            task.description = updateTaskDto.description;
+            task.description =
+                updateTaskDto.description;
         }
-        return this.taskRepository.save(task);
+        // =================================================
+        // SAVE TO DATABASE
+        // =================================================
+        const updatedTask = await this.taskRepository.save(task);
+        // =================================================
+        // INVALIDATE REDIS CACHE
+        // =================================================
+        await this.redisService.delete(`task:${id}`);
+        await this.clearTaskListCache();
+        return updatedTask;
     }
     // =====================================================
     // UPDATE TASK FOR LOGGED-IN USER
     // EJS
     // =====================================================
-    async updateForUser(id, updateTaskDto, userId) {
+    async updateForUser(id, updateTaskDto, userId, file) {
         const task = await this.findOneByUser(id, userId);
+        // =================================================
+        // UPDATE TITLE
+        // =================================================
         if (updateTaskDto.title !== undefined) {
-            task.title = updateTaskDto.title;
+            task.title =
+                updateTaskDto.title;
         }
+        // =================================================
+        // UPDATE DESCRIPTION
+        // =================================================
         if (updateTaskDto.description !== undefined) {
-            task.description = updateTaskDto.description;
+            task.description =
+                updateTaskDto.description;
         }
-        return this.taskRepository.save(task);
+        const savedTask = await this.taskRepository.save(task);
+        // =================================================
+        // REPLACE ATTACHMENT
+        // =================================================
+        if (file) {
+            const existingAttachment = await this.attachmentRepository.findOne({
+                where: {
+                    taskId: savedTask.id,
+                },
+            });
+            // =================================================
+            // OLD ATTACHMENT EXISTS
+            // =================================================
+            if (existingAttachment) {
+                const oldFilePath = path.join(process.cwd(), 'public', 'uploads', 'tasks', existingAttachment.fileName);
+                try {
+                    await fs.unlink(oldFilePath);
+                    console.log('Old attachment deleted:', oldFilePath);
+                }
+                catch (error) {
+                    console.log('Old physical file could not be deleted:', error);
+                }
+                // ---------------------------------------------
+                // UPDATE DATABASE RECORD
+                // ---------------------------------------------
+                existingAttachment.originalName =
+                    file.originalname;
+                existingAttachment.fileName =
+                    file.filename;
+                existingAttachment.mimeType =
+                    file.mimetype;
+                existingAttachment.size =
+                    file.size;
+                await this.attachmentRepository.save(existingAttachment);
+                console.log('Attachment replaced successfully');
+            }
+            // =================================================
+            // NO EXISTING ATTACHMENT
+            // =================================================
+            else {
+                const attachment = this.attachmentRepository.create({
+                    taskId: savedTask.id,
+                    originalName: file.originalname,
+                    fileName: file.filename,
+                    mimeType: file.mimetype,
+                    size: file.size,
+                });
+                await this.attachmentRepository.save(attachment);
+                console.log('New attachment added');
+            }
+        }
+        // =================================================
+        // INVALIDATE REST API CACHE
+        // =================================================
+        await this.redisService.delete(`task:${id}`);
+        await this.clearTaskListCache();
+        return savedTask;
     }
     // =====================================================
     // TOGGLE COMPLETED
@@ -174,8 +362,15 @@ let TasksService = class TasksService {
     // =====================================================
     async toggleComplete(id, userId) {
         const task = await this.findOneByUser(id, userId);
-        task.completed = !task.completed;
-        return this.taskRepository.save(task);
+        task.completed =
+            !task.completed;
+        const updatedTask = await this.taskRepository.save(task);
+        // =================================================
+        // INVALIDATE REDIS CACHE
+        // =================================================
+        await this.redisService.delete(`task:${id}`);
+        await this.clearTaskListCache();
+        return updatedTask;
     }
     // =====================================================
     // DELETE TASK
@@ -184,6 +379,11 @@ let TasksService = class TasksService {
     async delete(id) {
         const task = await this.findOne(id);
         await this.taskRepository.remove(task);
+        // =================================================
+        // INVALIDATE REDIS CACHE
+        // =================================================
+        await this.redisService.delete(`task:${id}`);
+        await this.clearTaskListCache();
         return {
             message: 'Task deleted successfully',
         };
@@ -195,6 +395,11 @@ let TasksService = class TasksService {
     async deleteForUser(id, userId) {
         const task = await this.findOneByUser(id, userId);
         await this.taskRepository.remove(task);
+        // =================================================
+        // INVALIDATE REST API CACHE
+        // =================================================
+        await this.redisService.delete(`task:${id}`);
+        await this.clearTaskListCache();
         return {
             message: 'Task deleted successfully',
         };
@@ -209,7 +414,10 @@ let TasksService = class TasksService {
 TasksService = __decorate([
     Injectable(),
     __param(0, InjectRepository(Task)),
-    __metadata("design:paramtypes", [Repository])
+    __param(1, InjectRepository(TaskAttachment)),
+    __metadata("design:paramtypes", [Repository,
+        Repository,
+        RedisService])
 ], TasksService);
 export { TasksService };
 //# sourceMappingURL=tasks.service.js.map
