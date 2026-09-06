@@ -6,12 +6,12 @@ export class UpdateTaskDto{
     @IsNotEmpty()
     @MinLength(3)
     @MaxLength(100)
-    title!: string;
+    title?: string;
 
     @IsString()
     @IsNotEmpty()
     @IsOptional()
     @MinLength(3)
     @MaxLength(500)
-    description!: string
+    description?: string
 }

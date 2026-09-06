@@ -5,12 +5,27 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { User } from '../auth/user.entity.js';
+import { Task } from '../tasks/entities/task.entity.js';
 import { AdminController } from './admin.controller.js';
+import { AdminService } from './admin.service.js';
 let AdminModule = class AdminModule {
 };
 AdminModule = __decorate([
     Module({
-        controllers: [AdminController],
+        imports: [
+            TypeOrmModule.forFeature([
+                User,
+                Task,
+            ]),
+        ],
+        controllers: [
+            AdminController,
+        ],
+        providers: [
+            AdminService,
+        ],
     })
 ], AdminModule);
 export { AdminModule };

@@ -1,4 +1,4 @@
-import {
+﻿import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -7,41 +7,308 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { Task } from './entities/task.entity.js';
+import { TaskAttachment } from './entities/task-attachment.entity.js';
+
 import { CreateTaskDto } from './dto/create-task.dto.js';
 import { UpdateTaskDto } from './dto/updata-task.dto.js';
+import { TaskQueryDto } from './dto/task-query.dto.js';
+
+import { RedisService } from '../redis/redis.service.js';
+
+import path from 'path';
+import * as fs from 'fs/promises';
 
 @Injectable()
 export class TasksService {
   constructor(
     @InjectRepository(Task)
     private readonly taskRepository: Repository<Task>,
+
+    @InjectRepository(TaskAttachment)
+    private readonly attachmentRepository: Repository<TaskAttachment>,
+
+    private readonly redisService: RedisService,
   ) {}
 
-  async findAll() {
-    return this.taskRepository.find({
-      order: {
-        createdAt: 'DESC',
-      },
-    });
+  // =====================================================
+  // REDIS CACHE HELPERS
+  // =====================================================
+
+  /**
+   * Delete all cached task list results.
+   *
+   * This is called whenever a task is created,
+   * updated, completed, or deleted.
+   */
+  private async clearTaskListCache(): Promise<void> {
+    await this.redisService.deleteByPattern('tasks:*');
   }
+
+  // =====================================================
+  // GET ALL TASKS
+  // REST API
+  // Search + Filter + Sort + Pagination + Redis Cache
+  // =====================================================
+
+  async findAll(query: TaskQueryDto = {}) {
+    const {
+      search,
+      completed,
+      sortBy = 'createdAt',
+      order = 'DESC',
+      page = 1,
+      limit = 10,
+    } = query;
+
+    const currentPage = Math.max(
+      Number(page) || 1,
+      1,
+    );
+
+    const currentLimit = Math.min(
+      Math.max(Number(limit) || 10, 1),
+      100,
+    );
+
+    // =================================================
+    // SAFE SORT VALUES
+    // =================================================
+
+    const allowedSortFields = [
+      'id',
+      'title',
+      'createdAt',
+      'updatedAt',
+    ];
+
+    const safeSortBy =
+      allowedSortFields.includes(sortBy)
+        ? sortBy
+        : 'createdAt';
+
+    const safeOrder =
+      order?.toUpperCase() === 'ASC'
+        ? 'ASC'
+        : 'DESC';
+
+    // =================================================
+    // CREATE REDIS CACHE KEY
+    // =================================================
+
+    const cacheKey = [
+      'tasks',
+      `search=${search ?? ''}`,
+      `completed=${completed ?? ''}`,
+      `sortBy=${safeSortBy}`,
+      `order=${safeOrder}`,
+      `page=${currentPage}`,
+      `limit=${currentLimit}`,
+    ].join(':');
+
+    // =================================================
+    // CHECK REDIS CACHE
+    // =================================================
+
+    const cachedTasks =
+      await this.redisService.get(cacheKey);
+
+    if (cachedTasks) {
+      console.log(
+        `Redis cache HIT: ${cacheKey}`,
+      );
+
+      return JSON.parse(cachedTasks);
+    }
+
+    console.log(
+      `Redis cache MISS: ${cacheKey}`,
+    );
+
+    // =================================================
+    // CREATE DATABASE QUERY
+    // =================================================
+
+    const queryBuilder =
+      this.taskRepository.createQueryBuilder(
+        'task',
+      );
+
+    // =================================================
+    // SEARCH
+    // =================================================
+
+    if (search) {
+      queryBuilder.andWhere(
+        '(task.title LIKE :search OR task.description LIKE :search)',
+        {
+          search: `%${search}%`,
+        },
+      );
+    }
+
+    // =================================================
+    // FILTER
+    // =================================================
+
+    if (completed !== undefined) {
+      queryBuilder.andWhere(
+        'task.completed = :completed',
+        {
+          completed:
+            completed === 'true',
+        },
+      );
+    }
+
+    // =================================================
+    // SORT
+    // =================================================
+
+    queryBuilder.orderBy(
+      `task.${safeSortBy}`,
+      safeOrder,
+    );
+
+    // =================================================
+    // PAGINATION
+    // =================================================
+
+    const skip =
+      (currentPage - 1) * currentLimit;
+
+    queryBuilder.skip(skip);
+    queryBuilder.take(currentLimit);
+
+    // =================================================
+    // EXECUTE DATABASE QUERY
+    // =================================================
+
+    const [tasks, total] =
+      await queryBuilder.getManyAndCount();
+
+    // =================================================
+    // CREATE RESPONSE
+    // =================================================
+
+    const result = {
+      data: tasks,
+      pagination: {
+        total,
+        page: currentPage,
+        limit: currentLimit,
+        totalPages: Math.ceil(
+          total / currentLimit,
+        ),
+      },
+    };
+
+    // =================================================
+    // STORE RESULT IN REDIS
+    // TTL = 60 SECONDS
+    // =================================================
+
+    await this.redisService.set(
+      cacheKey,
+      JSON.stringify(result),
+      60,
+    );
+
+    return result;
+  }
+
+  // =====================================================
+  // GET ALL TASKS FOR LOGGED-IN USER
+  // EJS
+  // =====================================================
 
   async findAllByUser(userId: number) {
     return this.taskRepository.find({
       where: {
         userId,
       },
+      relations: {
+        attachments: true,
+      },
       order: {
         createdAt: 'DESC',
       },
     });
   }
 
+  // =====================================================
+  // GET TASK BY ID
+  // REST API + Redis Cache
+  // =====================================================
+
   async findOne(id: number) {
-    const task = await this.taskRepository.findOne({
-      where: {
-        id,
-      },
-    });
+    const cacheKey = `task:${id}`;
+
+    // =================================================
+    // CHECK REDIS
+    // =================================================
+
+    const cachedTask =
+      await this.redisService.get(cacheKey);
+
+    if (cachedTask) {
+      console.log(
+        `Redis cache HIT: ${cacheKey}`,
+      );
+
+      return JSON.parse(cachedTask);
+    }
+
+    console.log(
+      `Redis cache MISS: ${cacheKey}`,
+    );
+
+    // =================================================
+    // GET FROM DATABASE
+    // =================================================
+
+    const task =
+      await this.taskRepository.findOne({
+        where: {
+          id,
+        },
+      });
+
+    if (!task) {
+      throw new NotFoundException(
+        `Task with ID ${id} not found`,
+      );
+    }
+
+    // =================================================
+    // STORE IN REDIS
+    // TTL = 60 SECONDS
+    // =================================================
+
+    await this.redisService.set(
+      cacheKey,
+      JSON.stringify(task),
+      60,
+    );
+
+    return task;
+  }
+
+  // =====================================================
+  // GET TASK BY ID FOR LOGGED-IN USER
+  // EJS
+  // =====================================================
+
+  async findOneByUser(
+    id: number,
+    userId: number,
+  ) {
+    const task =
+      await this.taskRepository.findOne({
+        where: {
+          id,
+          userId,
+        },
+      });
 
     if (!task) {
       throw new NotFoundException(
@@ -52,110 +319,389 @@ export class TasksService {
     return task;
   }
 
-  async findOneByUser(id: number, userId: number) {
-    const task = await this.taskRepository.findOne({
-      where: {
-        id,
-        userId,
-      },
-    });
+  // =====================================================
+  // CREATE TASK
+  // REST API
+  // =====================================================
 
-    if (!task) {
-      throw new NotFoundException(
-        `Task with ID ${id} not found`,
-      );
-    }
+  async create(
+    createTaskDto: CreateTaskDto,
+  ) {
+    const task =
+      this.taskRepository.create({
+        title: createTaskDto.title,
+        description:
+          createTaskDto.description,
+        completed: false,
+      });
 
-    return task;
+    const savedTask =
+      await this.taskRepository.save(task);
+
+    // =================================================
+    // CLEAR TASK LIST CACHE
+    // =================================================
+
+    await this.clearTaskListCache();
+
+    return savedTask;
   }
 
-  async create(createTaskDto: CreateTaskDto) {
-    const task = this.taskRepository.create({
-      title: createTaskDto.title,
-      description: createTaskDto.description,
-    });
-
-    return this.taskRepository.save(task);
-  }
+  // =====================================================
+  // CREATE TASK FOR LOGGED-IN USER
+  // EJS
+  // =====================================================
 
   async createForUser(
     createTaskDto: CreateTaskDto,
     userId: number,
+    file?: Express.Multer.File,
   ) {
-    const task = this.taskRepository.create({
-      title: createTaskDto.title,
-      description: createTaskDto.description,
-      userId,
-      completed: false,
-    });
+    const task =
+      this.taskRepository.create({
+        title: createTaskDto.title,
+        description:
+          createTaskDto.description,
+        userId,
+        completed: false,
+      });
 
-    return this.taskRepository.save(task);
+    const savedTask =
+      await this.taskRepository.save(task);
+
+    // =================================================
+    // SAVE ATTACHMENT
+    // =================================================
+
+    if (file) {
+      const attachment =
+        this.attachmentRepository.create({
+          taskId: savedTask.id,
+          originalName: file.originalname,
+          fileName: file.filename,
+          mimeType: file.mimetype,
+          size: file.size,
+        });
+
+      await this.attachmentRepository.save(
+        attachment,
+      );
+    }
+
+    return savedTask;
   }
+
+  // =====================================================
+  // UPDATE TASK
+  // REST API
+  // =====================================================
 
   async update(
     id: number,
     updateTaskDto: UpdateTaskDto,
   ) {
-    const task = await this.findOne(id);
+    const task =
+      await this.findOne(id);
 
-    if (updateTaskDto.title !== undefined) {
-      task.title = updateTaskDto.title;
+    // =================================================
+    // UPDATE TITLE
+    // =================================================
+
+    if (
+      updateTaskDto.title !== undefined
+    ) {
+      task.title =
+        updateTaskDto.title;
     }
 
-    if (updateTaskDto.description !== undefined) {
-      task.description = updateTaskDto.description;
+    // =================================================
+    // UPDATE DESCRIPTION
+    // =================================================
+
+    if (
+      updateTaskDto.description !== undefined
+    ) {
+      task.description =
+        updateTaskDto.description;
     }
 
-    return this.taskRepository.save(task);
+    // =================================================
+    // SAVE TO DATABASE
+    // =================================================
+
+    const updatedTask =
+      await this.taskRepository.save(task);
+
+    // =================================================
+    // INVALIDATE REDIS CACHE
+    // =================================================
+
+    await this.redisService.delete(
+      `task:${id}`,
+    );
+
+    await this.clearTaskListCache();
+
+    return updatedTask;
   }
+
+  // =====================================================
+  // UPDATE TASK FOR LOGGED-IN USER
+  // EJS
+  // =====================================================
 
   async updateForUser(
     id: number,
     updateTaskDto: UpdateTaskDto,
     userId: number,
+    file?: Express.Multer.File,
   ) {
-    const task = await this.findOneByUser(id, userId);
+    const task =
+      await this.findOneByUser(
+        id,
+        userId,
+      );
 
-    if (updateTaskDto.title !== undefined) {
-      task.title = updateTaskDto.title;
+    // =================================================
+    // UPDATE TITLE
+    // =================================================
+
+    if (
+      updateTaskDto.title !== undefined
+    ) {
+      task.title =
+        updateTaskDto.title;
     }
 
-    if (updateTaskDto.description !== undefined) {
-      task.description = updateTaskDto.description;
+    // =================================================
+    // UPDATE DESCRIPTION
+    // =================================================
+
+    if (
+      updateTaskDto.description !== undefined
+    ) {
+      task.description =
+        updateTaskDto.description;
     }
 
-    return this.taskRepository.save(task);
+    const savedTask =
+      await this.taskRepository.save(task);
+
+    // =================================================
+    // REPLACE ATTACHMENT
+    // =================================================
+
+    if (file) {
+      const existingAttachment =
+        await this.attachmentRepository.findOne({
+          where: {
+            taskId: savedTask.id,
+          },
+        });
+
+      // =================================================
+      // OLD ATTACHMENT EXISTS
+      // =================================================
+
+      if (existingAttachment) {
+        const oldFilePath =
+          path.join(
+            process.cwd(),
+            'public',
+            'uploads',
+            'tasks',
+            existingAttachment.fileName,
+          );
+
+        try {
+          await fs.unlink(
+            oldFilePath,
+          );
+
+          console.log(
+            'Old attachment deleted:',
+            oldFilePath,
+          );
+        } catch (error) {
+          console.log(
+            'Old physical file could not be deleted:',
+            error,
+          );
+        }
+
+        // ---------------------------------------------
+        // UPDATE DATABASE RECORD
+        // ---------------------------------------------
+
+        existingAttachment.originalName =
+          file.originalname;
+
+        existingAttachment.fileName =
+          file.filename;
+
+        existingAttachment.mimeType =
+          file.mimetype;
+
+        existingAttachment.size =
+          file.size;
+
+        await this.attachmentRepository.save(
+          existingAttachment,
+        );
+
+        console.log(
+          'Attachment replaced successfully',
+        );
+      }
+
+      // =================================================
+      // NO EXISTING ATTACHMENT
+      // =================================================
+
+      else {
+        const attachment =
+          this.attachmentRepository.create({
+            taskId: savedTask.id,
+            originalName:
+              file.originalname,
+            fileName:
+              file.filename,
+            mimeType:
+              file.mimetype,
+            size:
+              file.size,
+          });
+
+        await this.attachmentRepository.save(
+          attachment,
+        );
+
+        console.log(
+          'New attachment added',
+        );
+      }
+    }
+
+    // =================================================
+    // INVALIDATE REST API CACHE
+    // =================================================
+
+    await this.redisService.delete(
+      `task:${id}`,
+    );
+
+    await this.clearTaskListCache();
+
+    return savedTask;
   }
 
-  async toggleComplete(id: number, userId: number) {
-    const task = await this.findOneByUser(id, userId);
+  // =====================================================
+  // TOGGLE COMPLETED
+  // EJS
+  // =====================================================
 
-    task.completed = !task.completed;
+  async toggleComplete(
+    id: number,
+    userId: number,
+  ) {
+    const task =
+      await this.findOneByUser(
+        id,
+        userId,
+      );
 
-    return this.taskRepository.save(task);
+    task.completed =
+      !task.completed;
+
+    const updatedTask =
+      await this.taskRepository.save(
+        task,
+      );
+
+    // =================================================
+    // INVALIDATE REDIS CACHE
+    // =================================================
+
+    await this.redisService.delete(
+      `task:${id}`,
+    );
+
+    await this.clearTaskListCache();
+
+    return updatedTask;
   }
+
+  // =====================================================
+  // DELETE TASK
+  // REST API
+  // =====================================================
 
   async delete(id: number) {
-    const task = await this.findOne(id);
+    const task =
+      await this.findOne(id);
 
-    await this.taskRepository.remove(task);
+    await this.taskRepository.remove(
+      task,
+    );
+
+    // =================================================
+    // INVALIDATE REDIS CACHE
+    // =================================================
+
+    await this.redisService.delete(
+      `task:${id}`,
+    );
+
+    await this.clearTaskListCache();
 
     return {
-      message: 'Task deleted successfully',
+      message:
+        'Task deleted successfully',
     };
   }
 
-  async deleteForUser(id: number, userId: number) {
-    const task = await this.findOneByUser(id, userId);
+  // =====================================================
+  // DELETE TASK FOR LOGGED-IN USER
+  // EJS
+  // =====================================================
 
-    await this.taskRepository.remove(task);
+  async deleteForUser(
+    id: number,
+    userId: number,
+  ) {
+    const task =
+      await this.findOneByUser(
+        id,
+        userId,
+      );
+
+    await this.taskRepository.remove(
+      task,
+    );
+
+    // =================================================
+    // INVALIDATE REST API CACHE
+    // =================================================
+
+    await this.redisService.delete(
+      `task:${id}`,
+    );
+
+    await this.clearTaskListCache();
 
     return {
-      message: 'Task deleted successfully',
+      message:
+        'Task deleted successfully',
     };
   }
+
+  // =====================================================
+  // SAVE TASK
+  // =====================================================
 
   async save(task: Task) {
-    return this.taskRepository.save(task);
+    return this.taskRepository.save(
+      task,
+    );
   }
 }

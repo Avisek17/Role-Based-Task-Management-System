@@ -6,6 +6,8 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+import { OneToMany } from 'typeorm';
+import { TaskAttachment } from './task-attachment.entity.js';
 @Entity('tasks')
 export class Task {
 
@@ -29,5 +31,11 @@ export class Task {
 
   @UpdateDateColumn()
   updatedAt!: Date;
+  
+  @OneToMany(
+    () => TaskAttachment,
+    (attachment) => attachment.task,
+  )
+  attachments!: TaskAttachment[];
+  
 }
-

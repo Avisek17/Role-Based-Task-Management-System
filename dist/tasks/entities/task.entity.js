@@ -8,6 +8,8 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn, } from 'typeorm';
+import { OneToMany } from 'typeorm';
+import { TaskAttachment } from './task-attachment.entity.js';
 let Task = class Task {
     id;
     title;
@@ -16,6 +18,7 @@ let Task = class Task {
     userId;
     createdAt;
     updatedAt;
+    attachments;
 };
 __decorate([
     PrimaryGeneratedColumn(),
@@ -45,6 +48,10 @@ __decorate([
     UpdateDateColumn(),
     __metadata("design:type", Date)
 ], Task.prototype, "updatedAt", void 0);
+__decorate([
+    OneToMany(() => TaskAttachment, (attachment) => attachment.task),
+    __metadata("design:type", Array)
+], Task.prototype, "attachments", void 0);
 Task = __decorate([
     Entity('tasks')
 ], Task);

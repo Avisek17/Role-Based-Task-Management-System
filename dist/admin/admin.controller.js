@@ -11,8 +11,13 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 import { Controller, Get, Req, Res, } from '@nestjs/common';
+import { AdminService } from './admin.service.js';
 let AdminController = class AdminController {
-    dashboard(req, res) {
+    adminService;
+    constructor(adminService) {
+        this.adminService = adminService;
+    }
+    async dashboard(req, res) {
         if (!req.session.userId) {
             return res.redirect('/auth/login');
         }
@@ -21,12 +26,21 @@ let AdminController = class AdminController {
                 message: 'Access denied. Admins only.',
             });
         }
-        return res.render('admin/dashboard', {
-            username: req.session.username,
-            role: req.session.role,
-            users: [],
-            tasks: [],
-        });
+        try {
+            const { users, tasks } = await this.adminService.getDashboardData();
+            return res.render('admin/dashboard', {
+                username: req.session.username,
+                role: req.session.role,
+                users,
+                tasks,
+            });
+        }
+        catch (error) {
+            console.error('Admin dashboard error:', error);
+            return res.status(500).render('error', {
+                message: 'Unable to load admin dashboard',
+            });
+        }
     }
 };
 __decorate([
@@ -35,10 +49,11 @@ __decorate([
     __param(1, Res()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], AdminController.prototype, "dashboard", null);
 AdminController = __decorate([
-    Controller('admin')
+    Controller('admin'),
+    __metadata("design:paramtypes", [AdminService])
 ], AdminController);
 export { AdminController };
 //# sourceMappingURL=admin.controller.js.map

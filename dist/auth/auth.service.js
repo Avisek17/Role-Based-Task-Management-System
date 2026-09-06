@@ -14,11 +14,14 @@ import { Injectable, } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import bcrypt from 'bcrypt';
+import { JwtService } from '@nestjs/jwt';
 import { User } from './user.entity.js';
 let AuthService = class AuthService {
     userRepository;
-    constructor(userRepository) {
+    jwtService;
+    constructor(userRepository, jwtService) {
         this.userRepository = userRepository;
+        this.jwtService = jwtService;
     }
     async validateUser(username, password) {
         const user = await this.userRepository.findOne({
@@ -52,11 +55,22 @@ let AuthService = class AuthService {
         });
         return this.userRepository.save(user);
     }
+    async generateToken(user) {
+        const payload = {
+            sub: user.id,
+            username: user.username,
+            role: user.role,
+        };
+        return {
+            access_token: await this.jwtService.signAsync(payload),
+        };
+    }
 };
 AuthService = __decorate([
     Injectable(),
     __param(0, InjectRepository(User)),
-    __metadata("design:paramtypes", [Repository])
+    __metadata("design:paramtypes", [Repository,
+        JwtService])
 ], AuthService);
 export { AuthService };
 //# sourceMappingURL=auth.service.js.map
